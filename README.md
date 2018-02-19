@@ -51,8 +51,17 @@
 
 - http://benple.com/?p=7140
 
+- 박아름, 한재윤, 이경전, "IoT-based Omni Channel Service for Smart Exhibition and Value of Data", ICEC 2017, (2017).
+	- **ICEC 2017 최우수논문상 수상**
+
+- 2016년 7월부터 2016년 12월까지 DDP에서 열린 '백남준쇼'는 버튼 인터넷이 적용된 세계 최초의 전시회로서, (주)벤플의 기술이 접목되었습니다. 작품에 할당된 버튼을 누름으로써 도슨트 서비스를 받을 수 있으며, 이를 통해 관람객들의 서비스 이용 행태에 대한 데이터를 얻을 수 있습니다. 구축한 데이터를 기반으로 분석 가능한 형태로 데이터를 가공, t-SNE와 k-평균 군집분석을 이용하여 관람객을 분류하였습니다. 이 결과를 토대로 추후 관람객 유치나 타겟 마게팅 등에 활용할 수 있습니다.
+
+- The "Baik Nam June Show", which was held at DDP from July 2016 to October 2016, was the first exhibition in the world to be applied with "Button Internet". The docent service is provided to a visitor by pressing the button assigned to the artwork, and the service provider obtains the data that described the behavior pattern of the visitors. Based on the constructed database, the data was preprocessed in a form that can be analyzed, and then t-SNE and k-means clustering were conducted for the visitor segmentation. This result can be used for attracting visitors and target marketing in the follow-up exhibition.
+
 ### Predicting the House Price in King County
 (Feb 2017, 개인 프로젝트)
+
+- 매매일, 주택의 상세 정보, 위치 정보 등을 이용하여 
 
 ### Ensemble Approach for Financial Prediction
 (Jun 2016 - Dec 2016, 다수 외국계 은행 주관 프로젝트)
