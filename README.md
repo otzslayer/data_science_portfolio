@@ -21,9 +21,11 @@
 ## Contents
 
 ### PUBG Survival Time Prediction
+(2018. 02, 개인 프로젝트)
 
 - [Link](https://github.com/otzslayer/projects/blob/master/PUBG/PUBG%20Survival%20Time%20Prediction.ipynb)
-(2018. 02, 개인 프로젝트)
+
+- [PDF](https://github.com/otzslayer/projects/blob/master/PUBG/pubg_summary.pdf)
 
 - http://pubgtracker.com 에서 제공하는 PlayerUnknown's Battleground의 상위 플레이어 데이터와 다양한 통계학습 알고리즘을 이용하여 특정 플레이어의 **스쿼드 평균 생존시간**을 예측합니다. 또한 예측에 사용된 중요 변수들을 탐색하여 생존 전략을 세울 수 있도록 합니다.
 
