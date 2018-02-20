@@ -31,7 +31,7 @@ If some project material such as data are missing, it is not possible to upload 
 ### PUBG Survival Time Prediction
 (Feb 2018, 개인 프로젝트)
 
-- [Link](https://github.com/otzslayer/projects/blob/master/PUBG/PUBG%20Survival%20Time%20Prediction.ipynb) / [PDF](https://github.com/otzslayer/projects/blob/master/PUBG/pubg_summary.pdf)
+- [Notebook](https://github.com/otzslayer/projects/blob/master/PUBG/PUBG%20Survival%20Time%20Prediction.ipynb) / [PDF](https://github.com/otzslayer/projects/blob/master/PUBG/pubg_summary.pdf)
 
 - http://pubgtracker.com 에서 제공하는 PlayerUnknown's Battleground의 상위 플레이어 데이터와 다양한 통계학습 알고리즘을 이용하여 특정 플레이어의 **스쿼드 평균 생존시간**을 예측했습니다. 또한 예측에 사용된 중요 변수들을 탐색하여 생존 전략을 세울 수 있도록 했습니다.
 
@@ -71,6 +71,8 @@ If some project material such as data are missing, it is not possible to upload 
 ### Predicting the House Price in King County
 (Feb 2017, 개인 프로젝트)
 
+- [Notebook](https://github.com/otzslayer/projects/blob/master/King%20County%20House%20Price/House_KC.Rmd)
+
 - 거래일, 주택의 상세 정보, 위치 정보 등을 이용하여 시애틀 킹 카운티 지역의 주택 가격을 예측했습니다. 학부생 강의용으로 진행했던 프로젝트로, Adaptive Lasso를 포함한 다양한 회귀 분석 알고리즘을 사용했습니다.
 
 - Predicted the house price in King County, Seattle using transaction dates, features of housing, and location information. This project that was conducted for undergraduate lectures, using a variety of regression analysis algorithms, including Adaptive Lasso.
@@ -88,6 +90,8 @@ If some project material such as data are missing, it is not possible to upload 
 ### Korea Earthquake Interactive Map
 (Dec 2016, 개인 프로젝트)
 
+- Link / [PDF](https://github.com/otzslayer/projects/blob/master/Korea%20Earthquake%20Interactive%20Map/Paper/ShortPaper.pdf)
+
 - https://otzslayer.shinyapps.io/kor_quakes/
 
 - 기상청의 지진 데이터를 실시간으로 로드하고 Shiny를 이용하여 인터랙티브 지도를 구현했습니다. (현재 기상청 사이트의 도메인 변경으로 올바르게 데이터를 받아오지 못해 임시적으로 csv 파일을 불러오도록 했습니다.) 데이터 필터링 기능을 갖춘 슬라이더와 다양한 그래픽 요소들을 제공합니다.
@@ -96,6 +100,8 @@ If some project material such as data are missing, it is not possible to upload 
 
 ### Network Analysis for Football Transfer Market
 (Dec 2016, 개인 프로젝트)
+
+- [Code](https://github.com/otzslayer/projects/blob/master/Network%20Analysis%20for%20Football%20Transfer%20Market/Network%20Analysis%20for%20Football%20Transfer%20Market.Rmd) / [PDF](https://github.com/otzslayer/projects/blob/master/Network%20Analysis%20for%20Football%20Transfer%20Market/ShortPaper.pdf)
 
 - 네트워크 분석을 통해 2016년 여름 유럽 축구 이적시장을 바라보았습니다. 경제적 규모가 가장 큰 네 개의 리그와 최근 3년간 유럽 국가대항전에 출전한 팀들을 중심으로 가중치 네트워크 분석을 시도했습니다. 그 결과 네트워크의 연결 정도 분포는 멱법칙(power law)를 따르며, 위계 중심성을 통해서 잉글랜드 프리미어리그의 영향력이 매우 크다는 사실을 확인했습니다.
 
