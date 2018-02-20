@@ -1,0 +1,789 @@
+---
+title: "House Sales in King County, USA"
+author: "Jaeyoon Han"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    highlight: pygments
+    css: ~/Google Drive/ML Lecture/rmarkdown.css
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(ggplot2)
+library(dplyr)
+library(ggthemr)
+library(printr)
+library(doParallel)
+
+registerDoParallel(detectCores())
+
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.align = "center",
+	fig.height = 8,
+	fig.width = 14,
+	fig.retina = 2,
+	warning = FALSE,
+	prompt = FALSE,
+	tidy = FALSE,
+	cache = TRUE
+)
+
+custom_theme <- theme_bw(base_size = 11, base_family = "sans") +
+    theme(
+        axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", size = 14),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle = 0,
+                                   vjust = 1),
+        axis.text.y = element_text(face = "italic"),
+        legend.position = "right",
+        strip.text = element_text(face = "bold",
+                                  size = 12),
+        legend.justification = "top", 
+        legend.title = element_text(size = 9, face = 'bold')
+    )
+theme_set(custom_theme)
+```
+
+## House Sales Prediction in King County, USA
+
+#### Introduction
+
+- Kaggle의 오픈 데이터에서 강의용 데이터로 쓸만한 회귀분석용 데이터를 찾던 중 이 데이터를 찾게 되었다. [링크](https://www.kaggle.com/harlfoxem/housesalesprediction)
+
+- 이 데이터셋은 2014년 5월부터 2015년 5월까지 매매된 King County의 집값 데이터를 포함하고 있다.
+
+- 이 데이터를 활용해서 강의에서 전달하고자 하는 바는 **Feature Engineering**과 **Data Exploration**의 힘이다. 정말 간단한 몇 개의 과정을 반복하는 것만으로도 예측 모델의 성능을 어디까지 끌어올릴 수 있는지를 보여주고자 했다.
+
+- 강의를 위해서 준비한 자료를 공유하는 것이기 때문에, 자세한 코멘트는 달지 않았다. 추후 시간을 더 들여서 자세한 설명을 담은 포스트를 작성하고자 한다.
+
+### Tying Shoes
+
+```{r}
+### Load the libraries
+library(lubridate)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(corrplot)
+library(ggmap)
+```
+
+```{r}
+### Load the dataset
+House <- read_csv("data/kc_house_data.csv")
+```
+
+```{r}
+head(House)
+```
+
+#### Visualizing (Heat Map)
+
+```{r}
+### Initialize a map for King County
+kingCounty <- get_map(location = 'issaquah',
+                      zoom = 9,
+                      maptype = "roadmap"
+)
+
+### Generate a heat map
+ggmap(kingCounty) + 
+    geom_density2d(data = House, aes(x = long, y = lat), size = .3) + 
+    stat_density2d(data = House, aes(x = long, y = lat, fill = ..level.., alpha = ..level..), size = 0.01, bins = 16, geom = "polygon") + 
+    scale_fill_gradient(low = "green", high = "red") + 
+    scale_alpha(range = c(0.2, 0.4), guide = FALSE)
+```
+
+- 대부분의 데이터가 시애틀 지역을 기반에 두고 있으며, 외곽의 버클리나 스노퀄미 등의 지역의 데이터도 포함되어 있다.
+
+#### Data Preparation
+
+```{r}
+House %>%
+    mutate(
+        sale_year = year(date),
+        sale_month = month(date)
+    ) %>%
+    select(-id, -date) -> House
+```
+
+```{r}
+set.seed(2017)
+trainIdx <- sample(1:nrow(House), size = 0.7 * nrow(House))
+train <- House[trainIdx, ]
+test <- House[-trainIdx, ]
+```
+
+#### Benchmark
+
+```{r}
+bench_model <- lm(price ~ ., data = train)
+summary(bench_model)
+benchmark <- predict(bench_model, test)
+benchmark <- ifelse(benchmark < 0, 0, benchmark)
+```
+
+- 벤치마크 모델의 경우 굉장히 나쁜 성능을 보일 것은 자명하다. 밑의 과정들을 통해서 성능을 개선해보자.
+
+
+### Data Exploration
+
+```{r}
+### Generate a heat map
+ggmap(kingCounty) + 
+    geom_point(data = train, aes(x = long, y = lat, color = log(price), alpha = log(price))) + 
+    scale_color_gradient(low = "green", high = "red")
+```
+
+- `price`를 로그화하여 시각화한 결과로, 남부(`lat < 47.5`)보다 북부(`lat >= 47.5`) 쪽의 가격이 더 높음을 알 수 있다.
+- 그 중에서도 해변가에 인접한 곳의 가격이 더 높다.
+
+#### Correlation
+
+```{r}
+cor_House <- cor(House[, -1])
+corrplot(cor_House, order = "hclust")
+```
+
+#### Boxplots
+
+###### Skewness of Target Variable
+
+```{r}
+train %>%
+    ggplot(aes(x = price)) + 
+    geom_histogram(bins = 100)
+```
+
+```{r}
+train %>%
+    ggplot(aes(x = log(price))) + 
+    geom_histogram(bins = 100)
+```
+
+
+```{r}
+train %>%
+    ggplot(aes(x = log(price - 50000))) + 
+    geom_histogram()
+```
+
+
+###### Grade - Price
+
+```{r}
+train %>%
+    mutate(grade = factor(grade)) %>%
+    ggplot(aes(x = grade, y = price, fill = grade)) +
+    geom_boxplot() + 
+    geom_point(
+        data = train %>% 
+            group_by(grade) %>%
+            summarise(median = median(price)) %>%
+            mutate(grade = factor(grade)),
+        aes(x = grade, y = median, group = 1),
+        size = 5, stroke = 2,
+        color = "black", fill = "white", shape = 23
+    )
+```
+
+- `grade`가 한 단계 높아질 때마다 가격이 기하급수적으로 증가하는 것으로 보인다. 확인을 위해서 `log(price)`에 대해서 박스플롯을 그려본다.
+
+```{r}
+train %>%
+    mutate(grade = factor(grade)) %>%
+    ggplot(aes(x = grade, y = log(price - 50000), fill = grade)) +
+    geom_boxplot() + 
+    geom_point(
+        data = train %>% 
+            group_by(grade) %>%
+            summarise(median = median(log(price - 50000))) %>%
+            mutate(grade = factor(grade)),
+        aes(x = grade, y = median, group = 1),
+        size = 5, stroke = 2,
+        color = "black", fill = "white", shape = 23
+    )
+```
+
+###### Year Build - Price
+
+```{r}
+train %>%
+    mutate(yr_cat = cut(yr_built, breaks = seq(1900, 2020, by = 10),
+                        labels = paste0(seq(1900, 2010, by = 10), "s"))) %>%
+    ggplot(aes(x = yr_cat, y = log(price - 50000), fill = yr_cat)) + 
+    geom_boxplot()
+```
+
+- 건물이 지어진 연대와 가격 사이에는 큰 인사이트를 얻기 힘들어 보인다. 
+
+###### Year Renovated - Price
+
+```{r}
+train %>%
+    filter(yr_renovated != 0) %>%
+    mutate(renovated_cat = cut(yr_renovated, breaks = seq(1930, 2020, by = 10),
+                        labels = paste0(seq(1930, 2010, by = 10), "s"))) %>%
+    ggplot(aes(x = renovated_cat, y = log(price - 50000), fill = renovated_cat)) + 
+    geom_boxplot()
+```
+
+- 집을 개조한 경우, 최근에 개조할 수록 가격이 조금이라도 증가하는 경향을 보인다.
+
+###### Is there any difference between renovated / non-renovated
+
+```{r}
+train %>%
+    mutate(isRenovated = factor(ifelse(yr_renovated != 0, 1, 0))) %>%
+    ggplot(aes(x = isRenovated, y = log(price - 50000), fill = isRenovated)) + 
+    geom_boxplot()
+```
+
+- 개조한 집의 가격이 대체로 비싸게 책정됨을 알 수 있다.
+
+###### Year Saled - Price / Month Saled - Price
+
+```{r}
+train %>%
+    mutate(sale_year = factor(sale_year)) %>%
+    ggplot(aes(x = sale_year, y = log(price - 50000), fill = sale_year)) + 
+    geom_boxplot()
+```
+
+```{r}
+train %>%
+    mutate(sale_month = factor(sale_month)) %>%
+    ggplot(aes(x = sale_month, y = log(price - 50000), fill = sale_month)) + 
+    geom_boxplot()
+```
+
+- 두 변수 모두 가격에 영향을 미치는 것으로 보이진 않는다.
+
+###### Bathrooms - Price
+
+```{r}
+train %>%
+    mutate(bathrooms = factor(bathrooms)) %>%
+    ggplot(aes(x = bathrooms, y = log(price - 50000), fill = bathrooms)) + 
+    geom_boxplot()
+```
+
+- `log(price)`와 `bathrooms`는 유사 선형관계를 가진다.
+
+###### Coordinate - Price
+
+```{r}
+train %>%
+    ggplot(aes(x = lat, y = log(price - 50000), color = lat)) + 
+    geom_line() + geom_point(shape = 21)
+```
+
+```{r}
+train %>%
+    ggplot(aes(x = long, y = log(price - 50000), color = long)) + 
+    geom_line() + geom_point(shape = 21)
+```
+
+- 위도와 경도 모두 특정 영역에서 높은 가격대가 형성이 되어 있다. 변수를 새로 생성해서 영역을 분리하는 것이 도움이 될 것으로 보인다.
+    - Latitude : ~47.5 / 47.5 ~ 47.6 / 47.6 ~ 
+
+###### Zip Code - Price
+
+```{r}
+sort(unique(train$zipcode)) == sort(unique(test$zipcode))
+```
+
+- 트레이닝 데이터와 테스트 데이터에 존재하는 Zip Code는 동일하다.
+
+```{r}
+train %>%
+    arrange(zipcode) %>%
+    mutate(zipcode = factor(zipcode)) %>%
+    ggplot(aes(x = zipcode, y = log(price - 50000), fill = zipcode)) + 
+    geom_boxplot() + 
+    theme(axis.text.x = element_text(angle = 90, vjust = .1))
+```
+
+- **one-hot encoding** 으로 데이터를 확장하는 것을 고려하자.
+
+### Feature Engineering
+
+###### Split the latitude
+
+```{r}
+splitLat <- function(data){
+    data <- data %>%
+        dplyr::mutate(lat1 = ifelse(lat <= 47.5, lat, 0),
+                      lat2 = ifelse(lat > 47.5 & lat <= 47.6, lat, 0),
+                      lat3 = ifelse(lat > 47.6, lat, 0)) %>%
+        dplyr::select(-lat)
+    return(data)
+}
+
+train <- splitLat(train)
+test <- splitLat(test)
+```
+
+###### Is this house renovated?
+
+```{r}
+train <- train %>%
+    mutate(isRenovated = ifelse(yr_renovated != 0, 1, 0))
+
+test <- test %>%
+    mutate(isRenovated = ifelse(yr_renovated != 0, 1, 0))
+```
+
+###### How old is this house?
+
+```{r}
+train <- train %>%
+    mutate(age = ifelse(yr_renovated != 0, 2016 - yr_renovated, 2016 - yr_built))
+
+test <- test %>%
+    mutate(age = ifelse(yr_renovated != 0, 2016 - yr_renovated, 2016 - yr_built))
+```
+
+###### Zip Code (one-hot encoding)
+
+```{r}
+train$zipcode <- factor(train$zipcode)
+test$zipcode <- factor(test$zipcode)
+zipcode_train <- data.frame(model.matrix(price ~ 0 + zipcode, data = train))
+zipcode_test <- data.frame(model.matrix(price ~ 0 + zipcode, data = test))
+```
+
+```{r}
+train <- train %>%
+    select(-zipcode) %>%
+    cbind(zipcode_train)
+
+test <- test %>%
+    select(-zipcode) %>%
+    cbind(zipcode_test)
+```
+
+###### Feature Selection
+
+### Modeling
+
+```{r}
+model <- lm(log(price - 50000) ~ ., data = train)
+summary(model)
+```
+
+###### Evaluation Metric: RMSLE & MSE
+
+평가 메트릭으로 **Root Mean Squared Logarithmic Error(RMSLE)**와 **Mean Squared Error(MSE)**를 사용한다. RMSLE 메트릭은 과대평가된 항목보다는 과소평가된 항목에 페널티를 준다.
+
+$$
+RMSLE = \sqrt{\frac{1}{n} \sum^n_{i=1} \left( \log(p_i + 1) - \log(a_i + 1)\right)^2}
+$$
+
+```{r}
+rmsle <- function(predict, actual){
+    if(length(predict) != length(actual))
+        stop("The length of two vectors are different.")
+    
+    len <- length(predict)
+    rmsle <- sqrt((1/len) * sum((log(predict + 1) - log(actual + 1))^2))
+    return(rmsle)
+}
+```
+
+MSE는 다음과 같다.
+
+$$
+MSE = \sqrt{\frac{1}{n} \sum^n_{i=1} (p_i - a_i)^2}
+$$
+
+```{r}
+mse <- function(predict, actual){
+    if(length(predict) != length(actual))
+        stop("The length of two vectors are different.")
+    
+    len <- length(predict)
+    mse <- sqrt((1/len) * sum((predict - actual)^2))
+    return(mse)
+}
+```
+
+
+###### Test
+
+```{r}
+pred <- predict(model, test)
+pred <- exp(pred) + 50000
+
+result.rmsle <- rmsle(pred, test$price)
+benchmark.rmsle <- rmsle(benchmark, test$price)
+cat("RMSLE (Benchmark): ", benchmark.rmsle, "\nRMSLE (Final): ", result.rmsle)
+```
+
+```{r}
+result.mse <- mse(pred, test$price)
+benchmark.mse <- mse(benchmark, test$price)
+cat("MSE (Benchmark):", benchmark.mse, "\nMSE (Final):", result.mse)
+```
+
+
+### Regularization Methods
+
+###### Ridge Regression
+
+```{r}
+library(glmnet)
+
+set.seed(2017)
+lambda <- exp(-seq(7, 8, length.out = 400))
+
+ridge.cv <- cv.glmnet(
+    x = as.matrix(train[, -1]),
+    y = log(train$price - 50000),
+    alpha = 0,
+    lambda = lambda,
+    parallel = TRUE
+)
+```
+
+```{r}
+ridge.pred <- predict(ridge.cv, as.matrix(test[, -1]), s = ridge.cv$lambda.min)
+ridge.pred <- as.vector(exp(ridge.pred)) + 50000
+ridge.rmsle <- rmsle(ridge.pred, test$price)
+cat("RMSLE (Ridge):", ridge.rmsle)
+```
+
+```{r}
+ridge.mse <- mse(ridge.pred, test$price)
+cat("MSE (Ridge):", ridge.mse)
+```
+
+###### Lasso
+
+```{r}
+set.seed(2017)
+lambda <- exp(-seq(10, 11, length.out = 400))
+
+lasso.cv <- cv.glmnet(
+    x = as.matrix(train[, -1]),
+    y = log(train$price - 50000),
+    alpha = 1,
+    lambda = lambda,
+    parallel = TRUE
+)
+```
+
+```{r}
+lasso.pred <- predict(lasso.cv, as.matrix(test[, -1]), s = lasso.cv$lambda.min)
+lasso.pred <- as.vector(exp(lasso.pred)) + 50000
+lasso.rmsle <- rmsle(lasso.pred, test$price)
+cat("RMSLE (Lasso):", lasso.rmsle)
+```
+
+```{r}
+lasso.mse <- mse(lasso.pred, test$price)
+cat("MSE (Lasso):", lasso.mse)
+```
+
+###### Weighted Lasso
+
+```{r}
+# Adaptive Lasso Function with Automatic 10-fold CV
+adaLasso <- function(data, labels, parallel = TRUE, standardize = TRUE, weight, gamma = 1, formula = NULL, ols.data = NULL, ridge.lambda = NULL, lasso.lambda = NULL, seed = 1){
+    require(glmnet)
+    if(!(weight %in% c("ols", "ridge"))){
+        stop("The parameter 'weight' should be chosen either ols or ridge.")
+    }
+    if(weight == "ols"){
+        if(is.null(ols.data)){
+            stop("If you want to use the coefficients of OLS as the weight for Adaptive Lasso, you have to put a data.frame to ols.data argument.")
+        }
+        ols <- lm(formula = formula, data = ols.data)
+        weight <- 1/abs(as.matrix(coefficients(ols)[-1]))^gamma
+    }
+    if(weight == "ridge"){
+        set.seed(seed)
+        if(parallel)
+            doMC::registerDoMC(cores = 4)
+        
+        cv.ridge <- cv.glmnet(x = data, y = labels, alpha = 0, parallel = parallel, standardize = standardize, lambda = ridge.lambda)
+        weight <- 1/abs(matrix(coef(cv.ridge, s = cv.ridge$lambda.min)[-1, ]))^gamma
+    }
+    weight[,1][weight[, 1] == Inf] <- 999999999
+    set.seed(seed)
+    if(parallel)
+        doMC::registerDoMC(cores = 4)
+    cv.lasso <- cv.glmnet(x = data, y = labels, alpha = 1, parallel = parallel, standardize = standardize, lambda = lasso.lambda, penalty.factor = weight)
+    cv.lasso
+}
+```
+
+```{r}
+set.seed(2017)
+ridge.lambda <- exp(-seq(7, 8, length.out = 400))
+lasso.lambda <- exp(-seq(9, 10, length.out = 400))
+
+adaLasso.cv <- adaLasso(
+    data = as.matrix(train[, -1]),
+    label = log(train$price - 50000),
+    weight = "ridge",
+    ridge.lambda = ridge.lambda,
+    lasso.lambda = lasso.lambda,
+    parallel = TRUE
+)
+```
+
+```{r}
+adaLasso.pred <- predict(adaLasso.cv, as.matrix(test[, -1]), s = adaLasso.cv$lambda.min)
+adaLasso.pred <- as.vector(exp(adaLasso.pred)) + 50000
+adaLasso.rmsle <- rmsle(adaLasso.pred, test$price)
+cat("RMSLE (adaLasso):", adaLasso.rmsle)
+```
+
+```{r}
+adaLasso.mse <- mse(adaLasso.pred, test$price)
+cat("MSE (adaLasso):", adaLasso.mse)
+```
+
+###### Comparison
+
+```{r}
+library(reshape2)
+
+reg.result <- data.frame(Method = c("Least Square", "Ridge\nRegression", "Lasso", "Adaptive Lasso"),
+                         RMSLE = c(result.rmsle, ridge.rmsle, lasso.rmsle, adaLasso.rmsle),
+                         MSE = c(result.mse, ridge.mse, lasso.mse, adaLasso.mse))
+
+reg.result <- melt(reg.result, id.vars = "Method",
+                   variable.name = "Metric",
+                   value.name = "Score")
+
+reg.result$Method <- factor(reg.result$Method,
+                              levels = c("Least Square", "Lasso", "Ridge\nRegression", "Adaptive Lasso"))
+
+ggplot(reg.result, aes(x = Method, y = Score, group = Metric)) + 
+    geom_line() + geom_point(aes(color = Method, shape = Method), size = 5) + 
+    facet_grid(Metric ~ ., scales = "free_y") + 
+    geom_text(aes(label = ifelse(Score < 1, round(Score, 7), round(Score, 1))),
+              size = 3, hjust = 1.3, vjust = 1.3, fontface = 'bold')
+```
+
+### Tree Based Method
+
+###### Random Forest
+
+```{r}
+library(ranger)
+
+set.seed(2017)
+rf <- ranger(
+    formula = log(price - 50000) ~ .,
+    data = train, 
+    num.trees = 2000,
+    importance = 'impurity',
+    write.forest = TRUE
+)
+```
+
+```{r}
+rf.pred <- predict(rf, test)
+rf.pred <- exp(rf.pred$predictions) + 50000
+rf.rmsle <- rmsle(rf.pred, test$price)
+cat("RMSLE (Random Forest):", rf.rmsle)
+```
+
+```{r}
+rf.mse <- mse(rf.pred, test$price)
+cat("MSE (Random Forest):", rf.mse)
+```
+
+###### XGBoost
+
+```{r}
+library(xgboost)
+
+params <- list(
+    eta = 0.3,
+    gamma = 0,
+    max_depth = 5,
+    min_child_weight = 1,
+    subsample = 1,
+    colample_bytree = 1,
+    objective = "reg:linear",
+    eval_metric = "rmse"
+)
+
+set.seed(2017)
+
+xgb.cv <- xgb.cv(
+    params = params,
+    data = as.matrix(train[, -1]),
+    nrounds = 200,
+    nfold = 10,
+    label = log(train$price - 50000),
+    verbose = 1,
+    print_every_n = 25
+)
+```
+
+```{r}
+best.xgb <- xgb.cv$evaluation_log %>%
+    arrange(test_rmse_mean, test_rmse_std) %>%
+    head(1)
+best.xgb
+```
+
+```{r}
+iter <- best.xgb$iter
+
+xgb <- xgboost(
+    data = as.matrix(train[, -1]),
+    nrounds = iter,
+    label = log(train$price - 50000),
+    verbose = 1,
+    print_every_n = 25
+)
+```
+
+```{r}
+xgb.pred <- predict(xgb, as.matrix(test[, -1]))
+xgb.pred <- exp(xgb.pred) + 50000
+xgb.rmsle <- rmsle(xgb.pred, test$price)
+cat("RMSLE (Xgboost):", xgb.rmsle)
+```
+
+```{r}
+xgb.mse <- mse(xgb.pred, test$price)
+cat("MSE (Xgboost):", xgb.mse)
+```
+
+### Final Comparison
+
+```{r}
+library(caret)
+result.r2 <- postResample(pred, test$price)[2]
+ridge.r2 <- postResample(ridge.pred, test$price)[2]
+lasso.r2 <- postResample(lasso.pred, test$price)[2]
+adaLasso.r2 <- postResample(adaLasso.pred, test$price)[2]
+rf.r2 <- postResample(rf.pred, test$price)[2]
+xgb.r2 <- postResample(xgb.pred, test$price)[2]
+```
+
+
+```{r, fig.height=10}
+final.result <- data.frame(Method = c("Least Square", "Ridge\nRegression", "Lasso", "Adaptive\nLasso", "Random\nForest", "XGBoost"),
+                         MSE = c(result.mse, ridge.mse, lasso.mse, adaLasso.mse, rf.mse, xgb.mse),
+                         RMSLE = c(result.rmsle, ridge.rmsle, lasso.rmsle, adaLasso.rmsle, rf.rmsle, xgb.rmsle),
+                         R2 = c(result.r2, ridge.r2, lasso.r2, adaLasso.r2, rf.r2, xgb.r2))
+
+final.result <- melt(final.result, id.vars = "Method",
+                   variable.name = "Metric",
+                   value.name = "Score")
+
+final.result$Method <- factor(final.result$Method,
+                              levels = c("Least Square", "Lasso", "Ridge\nRegression", "Adaptive\nLasso", "Random\nForest", "XGBoost"))
+
+ggplot(final.result, aes(x = Method, y = Score, group = Metric)) + 
+    geom_line(linetype = "dashed") + geom_point(aes(color = Method, shape = Method), size = 5) + 
+    facet_grid(Metric ~ ., scales = "free_y") + 
+    geom_text(aes(label = ifelse(Score < 1, round(Score, 7), round(Score, 1))),
+              size = 2.5, hjust = 1.2, vjust = 1.4, fontface = 'bold.italic') + 
+    theme(legend.key.size = unit(2, 'lines'))
+```
+
+### Ensembling
+
+```{r}
+R2 <- c(adaLasso.r2, rf.r2, xgb.r2)
+names(R2) <- c("AdaLasso", "RandomForest", "XGBoost")
+preds <- data.frame(adaLasso.pred, rf.pred, xgb.pred)
+names(preds) <- c("AdaLasso", "RandomForest", "XGBoost")
+
+regressionEnsemble <- function(pred_df, R2){
+    len <- length(R2)
+    weights <- rep(0, len)
+    sumR2 <- sum(R2)
+    for(i in 1:len){
+        weights[i] <- R2[i]/sumR2
+        pred_df[, i] <- weights[i] * pred_df[, i]
+    }
+    final_pred <- apply(pred_df, 1, sum)
+    return(final_pred)
+}
+
+ensemble.pred <- regressionEnsemble(preds, R2)
+```
+
+```{r}
+ensemble.rmsle <- rmsle(ensemble.pred, test$price)
+cat("RMSLE (Ensemble):", ensemble.rmsle)
+```
+
+```{r}
+ensemble.mse <- mse(ensemble.pred, test$price)
+cat("MSE (Ensemble):", ensemble.mse)
+```
+
+```{r}
+ensemble.r2 <- postResample(ensemble.pred, test$price)[2]
+cat("R2 (Ensemble):", ensemble.r2)
+```
+
+```{r, fig.height=10}
+final.result <- data.frame(Method = c("Least Square", "Ridge\nRegression", "Lasso", "Adaptive\nLasso", "Random\nForest", "XGBoost", "Ensemble"),
+                         MSE = c(result.mse, ridge.mse, lasso.mse, adaLasso.mse, rf.mse, xgb.mse, ensemble.mse),
+                         RMSLE = c(result.rmsle, ridge.rmsle, lasso.rmsle, adaLasso.rmsle, rf.rmsle, xgb.rmsle, ensemble.rmsle),
+                         R2 = c(result.r2, ridge.r2, lasso.r2, adaLasso.r2, rf.r2, xgb.r2, ensemble.r2))
+
+final.result <- melt(final.result, id.vars = "Method",
+                   variable.name = "Metric",
+                   value.name = "Score")
+
+final.result$Method <- factor(final.result$Method,
+                              levels = c("Least Square", "Lasso", "Ridge\nRegression", "Adaptive\nLasso", "Random\nForest", "XGBoost", "Ensemble"))
+
+ggplot(final.result, aes(x = Method, y = Score, group = Metric)) + 
+    geom_line(linetype = "dashed") + geom_point(aes(color = Method, shape = Method), size = 5) + 
+    facet_grid(Metric ~ ., scales = "free_y") + 
+    geom_text(aes(label = ifelse(Score < 1, round(Score, 7), round(Score, 1))),
+              size = 2.5, hjust = 1.2, vjust = 1.4, fontface = 'bold.italic') + 
+    theme(legend.key.size = unit(2, 'lines')) + 
+    scale_shape_manual(values = c(16, 17, 15, 3, 7, 8, 13))
+```
+
+### In addition,
+
+- 사실 핸들링을 마친 데이터에는 다중공선성이 있었다. 위도와 경도를 제거하면 해당 다중공선성이 제거된다. 다중공선성를 제거하더라도 위의 성능 그래프에서 차이가 발생하지는 않는다.
+
+```{r}
+library(car)
+vif <- vif((lm(log(price) ~ bedrooms + bathrooms + sqft_living + sqft_lot + 
+    floors + waterfront + view + condition + grade + sqft_above + 
+    long + sqft_living15 + sqft_lot15 + lat1 + lat2 + lat3 +
+    isRenovated + age + zipcode98001 + zipcode98002 + 
+    zipcode98003 + zipcode98004 + zipcode98005 + zipcode98006 + 
+    zipcode98007 + zipcode98008 + zipcode98010 + zipcode98011 + 
+    zipcode98014 + zipcode98019 + zipcode98022 + zipcode98023 + 
+    zipcode98024 + zipcode98027 + zipcode98028 + zipcode98029 + 
+    zipcode98030 + zipcode98031 + zipcode98032 + zipcode98033 + 
+    zipcode98034 + zipcode98038 + zipcode98039 + zipcode98040 + 
+    zipcode98042 + zipcode98045 + zipcode98052 + zipcode98053 + 
+    zipcode98055 + zipcode98056 + zipcode98058 + zipcode98059 + 
+    zipcode98065 + zipcode98070 + zipcode98072 + zipcode98074 + 
+    zipcode98075 + zipcode98077 + zipcode98092 + zipcode98102 + 
+    zipcode98103 + zipcode98105 + zipcode98106 + zipcode98107 + 
+    zipcode98108 + zipcode98109 + zipcode98112 + zipcode98115 + 
+    zipcode98116 + zipcode98117 + zipcode98118 + zipcode98119 + 
+    zipcode98122 + zipcode98125 + zipcode98126 + zipcode98133 + 
+    zipcode98136 + zipcode98144 + zipcode98146 + zipcode98148 + 
+    zipcode98155 + zipcode98166 + zipcode98168 + zipcode98177 + 
+    zipcode98178 + zipcode98188 + zipcode98198, data = train)))
+names(vif[vif > 10])
+```
+
