@@ -43,12 +43,16 @@ If some project material such as data are missing, it is not possible to upload 
 
 - https://www.kaggle.com/c/mercedes-benz-greener-manufacturing
 
+- [Notebook](https://github.com/otzslayer/projects/blob/master/Mercedes-Benz%20Greener%20Manufacturing/Mercedes-Benz%20Greener%20Manufacturing.ipynb)
+
 - 익명화된 변수들을 이용하여 차량이 테스트를 통과하는 데에 걸리는 시간을 예측했습니다. 서로 다른 변수 집합(PCA, MCA 등)과 세 가지의 다른 알고리즘을 사용하여 총 18개의 단일 모델을 만들었고, 이를 스태킹하여 앙상블 모델을 구현하였습니다. 캐글 컴피티션에서 상위 27%를 기록했습니다.
 
 - Building the model using numerous anonymized features to predict that the time that the Mercedes-Benz car takes to pass testing. A total of 18 single models were created using different features sets (PCA, MCA, etc.) and three different algorithms. An ensemble model was implemented by stacked generalization and the result was of top 27% in leaderboard.
 
 ### Sberbank Russian Housing Market
 (Jun 2017, Kaggle competition)
+
+- [Notebook](https://github.com/otzslayer/projects/blob/master/Sberbank%20Russian%20Housing%20Market/Sberbank%20Russian%20Housing%20Market.ipynb)
 
 - https://www.kaggle.com/c/sberbank-russian-housing-market
 
@@ -80,6 +84,8 @@ If some project material such as data are missing, it is not possible to upload 
 ### Ensemble Approach for Financial Prediction
 (Jun 2016 - Dec 2016, 다수 외국계 은행 주관 프로젝트)
 
+- [Thesis](http://dcollection.khu.ac.kr.openlink.khu.ac.kr:8080/common/orgView/000000204945)
+
 - 다양한 국가 기반의 주가 지수 및 환율 등의 변수를 이용하여 금융 시장을 예측하였습니다. 기존 연구와 다르게 지수의 로그 수익률을 입력 변수로 하여 모델을 구현했습니다. 단일 모델을 앙상블하여 성능을 높이고, Lasso를 이용하여 단일 모델에서의 설명을 가능하게 했습니다.
 
 - Forecasted the financial market by using the stock market indices, exchange rates based on various contries. Unlike previous studies, the model was implemented with the logarithmic return of the index as input variable. Improved the performance by ensembling single models, and use Lasso to explain the feature importance of each variable.
@@ -90,9 +96,7 @@ If some project material such as data are missing, it is not possible to upload 
 ### Korea Earthquake Interactive Map
 (Dec 2016, 개인 프로젝트)
 
-- Link / [PDF](https://github.com/otzslayer/projects/blob/master/Korea%20Earthquake%20Interactive%20Map/Paper/ShortPaper.pdf)
-
-- https://otzslayer.shinyapps.io/kor_quakes/
+- [Link](https://otzslayer.shinyapps.io/kor_quakes/) / [PDF](https://github.com/otzslayer/projects/blob/master/Korea%20Earthquake%20Interactive%20Map/Paper/ShortPaper.pdf)
 
 - 기상청의 지진 데이터를 실시간으로 로드하고 Shiny를 이용하여 인터랙티브 지도를 구현했습니다. (현재 기상청 사이트의 도메인 변경으로 올바르게 데이터를 받아오지 못해 임시적으로 csv 파일을 불러오도록 했습니다.) 데이터 필터링 기능을 갖춘 슬라이더와 다양한 그래픽 요소들을 제공합니다.
 
@@ -109,6 +113,8 @@ If some project material such as data are missing, it is not possible to upload 
 
 ### Kobe Bryant Shot Selection
 (Apr 2016, Kaggle competition)
+
+- [RMarkdown](https://github.com/otzslayer/projects/blob/master/Kobe%20Bryant%20Shot%20Selection/Kobe%20Bryant%20Shot%20Selection.Rmd) / [Keynote](https://github.com/otzslayer/projects/blob/master/Kobe%20Bryant%20Shot%20Selection/Keynote.pdf) / [Short Paper](https://github.com/otzslayer/projects/blob/master/Kobe%20Bryant%20Shot%20Selection/Paper/Paper.pdf)
 
 - https://www.kaggle.com/c/kobe-bryant-shot-selection
 
