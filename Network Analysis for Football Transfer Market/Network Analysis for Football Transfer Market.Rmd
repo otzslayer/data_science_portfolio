@@ -1,0 +1,1028 @@
+---
+title: "Football Transfer Network Analysis"
+author: "Jaeyoon Han"
+output: 
+    html_document:
+        highlight: pygments
+        css: /Users/Han/Library/Application Support/MacDown/Styles/RMarkdown.css
+---
+
+```{r knitr_init, echo=FALSE, cache=FALSE, message = FALSE}
+library(knitr)
+library(rmdformats)
+library(ggplot2)
+library(MASS)
+library(dplyr)
+
+## Global options
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, prompt = FALSE, tidy = TRUE,
+                      comment = NA, warning = FALSE, cache = TRUE,
+                      fig.height = 4, fig.width = 7, fig.retina = 2,
+                      fig.align = "center")
+custom_theme <- theme_bw(base_family = "Times New Roman") +
+    theme(legend.position = "right",
+          axis.title.x = element_text(size = 11, 
+                                      margin = margin(10, 0, 0, 0),
+                                      face = "bold"),
+          axis.title.y = element_text(size = 11,
+                                      margin = margin(0, 10, 0, 0),
+                                      face = "bold"),
+          plot.title = element_text(family = "Times New Roman"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank())
+theme_set(custom_theme)
+```
+
+## Data Preprocessing
+
+```{r}
+library(readr)
+epl <- read_csv("~/Google Drive/KHU SNS/2nd Semester/SNS Analysis/Final/Total.csv")
+head(epl)
+```
+
+```{r}
+library(dplyr)
+epl <- epl %>%
+    filter(To != "Unattached") %>%
+    filter(To != "End of career") %>%
+    filter(From != "Unattached")
+
+epl$MarketValue <- gsub(x = epl$MarketValue, pattern = "£", replacement = "")
+epl$TransferFee <- gsub(x = epl$TransferFee, pattern = "£", replacement = "")
+
+epl$TransferFee[which(epl$From == "Unattached")] <- epl$MarketValue[which(epl$From == "Unattached")]
+epl$TransferFee[which(epl$TransferFee == "Free transfer")] <- epl$MarketValue[which(epl$TransferFee == "Free transfer")]
+epl$TransferFee[which(epl$TransferFee == "?")] <- epl$MarketValue[which(epl$TransferFee == "?")]
+epl$TransferFee[which(epl$TransferFee == "-0")] <- epl$MarketValue[which(epl$TransferFee == "-0")]
+
+epl <- epl %>%
+    filter(substring(TransferFee, 1, 1) %in% 1:9)
+
+head(epl)
+```
+
+```{r}
+cleanEPL <- epl[-which(duplicated(epl$Name)), ]
+head(cleanEPL)
+```
+
+```{r}
+cleanEPL <- cleanEPL[-which(cleanEPL$To == "Unknown"), ]
+```
+
+
+```{r}
+vector <- cleanEPL$TransferFee
+
+makeWeight <- function(vector){
+    weight <- ifelse(grepl(x = vector, pattern = "m"),
+            as.numeric(gsub(x = vector, pattern = "m", replacement = "")),
+            as.numeric(gsub(x = vector, pattern = "k", replacement = "")) / 1000)
+    return(weight)
+}
+
+cleanEPL$TransferFee <- makeWeight(cleanEPL$TransferFee)
+cleanEPL$MarketValue <- makeWeight(cleanEPL$MarketValue)
+
+head(cleanEPL)
+```
+
+```{r}
+epl <- select(cleanEPL, From:TransferFee) %>%
+    arrange(From)
+head(epl)
+```
+
+```{r}
+financeSize <- data.frame(Team = c(epl$From, epl$To), TransferFee = rep(epl$TransferFee, 2)) %>%
+    group_by(Team) %>%
+    summarise(Size = sum(TransferFee))
+```
+
+
+```{r}
+teamlist <- unique(c(epl$From, epl$To))
+teamlist <- data.frame(Team = teamlist)
+teamlist <- arrange(teamlist, Team)
+team <- read_csv("Team.csv")
+teamlist <- left_join(teamlist, team)
+teamlist$League[is.na(teamlist$League)] <- "Miscellaneous"
+teamlist$League <- as.factor(teamlist$League)
+teamlist$Size <- financeSize$Size
+leagues <- levels(teamlist$League)
+```
+
+```{r}
+team_nodes <- data.frame(id = paste0("team", sprintf("%03d", 1:nrow(teamlist))),
+                         label = teamlist$Team,
+                         group.label = teamlist$League,
+                         value = teamlist$Size) %>%
+    mutate(group = as.factor(group.label))
+
+from <- left_join(epl[, 1], select(team_nodes, label, id), by = c("From" = "label"))
+to <- left_join(epl[, 2], select(team_nodes, label, id), by = c("To" = "label"))
+
+team_links <- data.frame(from, to, weight = epl$TransferFee) %>%
+    select(id, id.1, weight)
+names(team_links) <- c("from", "to", "weight")
+```
+
+```{r}
+label <- levels(team_nodes$group.label)
+
+team_nodes$group.label <- as.numeric(team_nodes$group.label)
+```
+
+```{r}
+head(team_nodes)
+```
+
+```{r}
+head(team_links)
+```
+
+## Constructing Network
+
+```{r}
+library(igraph)
+network <- graph_from_data_frame(d = team_links, vertices = team_nodes, directed = TRUE)
+```
+
+```{r}
+network
+```
+
+```{r}
+E(network)
+```
+
+```{r}
+V(network)
+```
+
+#### Visualization
+
+```{r}
+V(network)$size <- log(V(network)$value + 1) * 1.5
+
+plot(network, edge.arrow.size = .05, edge.curved = .1,
+     vertex.color="orange", vertex.frame.color="#555555",
+     vertex.label=V(network)$label, vertex.label.color="black",
+     vertex.label.cex=.2, rescale = T) 
+```
+
+
+```{r}
+colors <- c("sienna2", "gray80", "dodgerblue", "lightsalmon4", "paleturquoise", "darkolivegreen3", "gray20", "tan1", "springgreen4", "lightseagreen", "goldenrod1", "firebrick1", "lightpink2")
+V(network)$color <- colors[V(network)$group.label]
+
+V(network)$size <- log(V(network)$value + 1) * 1.2
+
+plot(network, edge.arrow.size = .01, edge.curved = .1,
+     vertex.frame.color="#555555", edge.width = .5,
+     vertex.label=V(network)$label, vertex.label.color="black",
+     vertex.label.cex=.4, rescale = T)
+
+legend(x = -.8, y = -1, label, pch = 21, cex = 0.5,
+       text.width = 0.2, col="#777777", pt.bg = colors, pt.cex = 1, bty = "n", ncol = 5)
+
+```
+
+#### Final Visualization
+
+```{r}
+edge.color <- 1:length(E(network))
+
+for(i in 1:nrow(team_nodes)){
+    index <- incident(network, V(network)[i])
+    group_index <- team_nodes[i, "group.label"]
+    edge.color[index] <- colors[group_index]
+}
+
+E(network)$edge.color <- edge.color
+```
+
+```{r}
+E(network)$width <- log(E(network)$weight + 1)
+E(network)$width[E(network)$width < 0.5] <- 0.5
+vertex.color <- colors[V(network)$group.label]
+
+plot(network, edge.arrow.size = .02,
+     vertex.frame.color = adjustcolor("#555555", alpha = .3),
+     edge.color = adjustcolor(edge.color, alpha.f = .7),
+     vertex.color = adjustcolor(vertex.color, alpha = .6),
+     vertex.label = V(network)$label,
+     vertex.label.color = "black",
+     vertex.label.cex = .35, 
+     vertex.label.family = "Helvetica",
+     layout=layout_nicely(network)
+     )
+
+legend(x = -.9, y = -1, label, pch = 21, cex = 0.5,
+       text.width = 0.2, col= adjustcolor(vertex.color, alpha.f = .4),
+       pt.bg = adjustcolor(colors, alpha = .6), pt.cex = 1, bty = "n", ncol = 5)
+```
+
+## Network Analysis
+
+#### Basic Network Properties
+
+```{r}
+V(network)$degree <- degree(network)
+V(network)$closeness <- centralization.closeness(network)$res
+V(network)$betweenness <- centralization.betweenness(network)$res
+V(network)$eigen <- centralization.evcent(network)$vector
+```
+
+```{r}
+# This function implements the community detection method described in: Raghavan, U.N. and Albert, R. and Kumara, S.: Near linear time algorithm to detect community structures in large-scale networks. Phys Rev E 76, 036106. (2007). This version extends the original method by the ability to take edge weights into consideration and also by allowing some labels to be fixed.
+
+# From the abstract of the paper: “In our algorithm every node is initialized with a unique label and at every step each node adopts the label that most of its neighbors currently have. In this iterative process densely connected groups of nodes form a consensus on a unique label to form communities.”
+
+clp <- cluster_label_prop(network)
+clp
+```
+
+
+#### Adjacency Matrix
+
+```{r}
+football_adjacency <- as.matrix(get.adjacency(network))
+colnames(football_adjacency) <- 1:nrow(football_adjacency)
+row.names(football_adjacency) <- 1:nrow(football_adjacency)
+write.csv(football_adjacency, "adjacency.csv")
+```
+
+```{r}
+# Re-generate dataframes for both nodes and edges, now containing
+# calculated network attributes
+node_list <- get.data.frame(network, what = "vertices")
+
+# Determine a community for each edge. If two nodes belong to the
+# same community, label the edge with that community. If not,
+# the edge community value is 'NA'
+edge_list <- get.data.frame(network, what = "edges") %>%
+  inner_join(node_list %>% select(name, group.label), by = c("from" = "name")) %>%
+  inner_join(node_list %>% select(name, group.label), by = c("to" = "name")) %>%
+  mutate(group = as.factor(group.label.x))
+
+# Create a character vector containing every node name
+all_nodes <- sort(node_list$name)
+
+# Adjust the 'to' and 'from' factor levels so they are equal
+# to this complete list of node names
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = all_nodes),
+        from = factor(from, levels = all_nodes))
+
+name_order <- (node_list %>% arrange(group.label))$name
+
+# Reorder edge_list "from" and "to" factor levels based on
+# this new name_order
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = name_order),
+        from = factor(from, levels = name_order))
+
+```
+
+```{r, message = FALSE}
+adjacency <- ggplot(plot_data, aes(x = from, y = to, fill = group)) +
+    geom_raster() +
+    # Because we need the x and y axis to display every node,
+    # not just the nodes that have connections to each other,
+    # make sure that ggplot does not drop unused factor levels
+    scale_x_discrete(drop = FALSE) +
+    scale_y_discrete(drop = FALSE) +
+    xlab(NULL) + ylab(NULL) + 
+    scale_fill_manual(values = colors,
+                      labels = leagues,
+                      name = "Leagues") +
+    theme(
+        # Rotate the x-axis lables so they are legible
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        # Force the plot into a square aspect ratio
+        aspect.ratio = 1
+        # Hide the legend (optional)
+        )
+
+adjacency
+```
+
+#### League Analysis
+
+```{r}
+# EPL, La Liga, Bundesliga, Serie A
+
+epl.list <- node_list %>%
+    filter(group == "England") %>%
+    .$name
+
+laliga.list <- node_list %>%
+    filter(group == "Spain") %>%
+    .$name
+
+bundes.list <- node_list %>%
+    filter(group == "Germany") %>%
+    .$name
+
+seriea.list <- node_list %>%
+    filter(group == "Italy") %>%
+    .$name
+```
+
+###### EPL
+
+```{r}
+epl.links <- team_links %>%
+    filter(from %in% epl.list | to %in% epl.list)
+
+epl.nodes <- team_nodes %>%
+    filter(id %in% unique(c(as.character(epl.links$from), as.character(epl.links$to))))
+```
+
+```{r}
+epl.network <- graph_from_data_frame(d = epl.links, vertices = epl.nodes, directed = TRUE)
+```
+
+```{r}
+V(epl.network)$degree <- degree(epl.network)
+V(epl.network)$closeness <- centralization.closeness(epl.network)$res
+V(epl.network)$betweenness <- centralization.betweenness(epl.network)$res
+V(epl.network)$eigen <- centralization.evcent(epl.network)$vector
+```
+
+```{r}
+E(epl.network)$width <- log(E(epl.network)$weight + 1)
+E(epl.network)$width[E(epl.network)$width < 0.5] <- 0.5
+V(epl.network)$size <- log(V(epl.network)$value + 1) * 1.5
+
+edge.color <- 1:length(E(epl.network))
+
+for(i in 1:nrow(epl.nodes)){
+    index <- incident(epl.network, V(epl.network)[i], mode = 'out')
+    group_index <- epl.nodes[i, "group.label"]
+    edge.color[index] <- colors[group_index]
+}
+
+vertex.color <- colors[V(epl.network)$group.label]
+
+plot(epl.network, edge.arrow.size = .02,
+     vertex.frame.color = adjustcolor("#555555", alpha = .3),
+     edge.color = adjustcolor(edge.color, alpha.f = .7),
+     vertex.color = adjustcolor(vertex.color, alpha = .6),
+     vertex.label = V(epl.network)$label,
+     vertex.label.color = "black",
+     vertex.label.cex = .35, 
+     vertex.label.family = "Helvetica",
+     layout=layout_nicely(epl.network)
+     )
+
+legend(x = -.9, y = -1, label, pch = 21, cex = 0.5,
+       text.width = 0.2, col= adjustcolor(vertex.color, alpha.f = .4),
+       pt.bg = adjustcolor(colors, alpha = .6), pt.cex = 1, bty = "n", ncol = 5)
+```
+
+
+```{r}
+# Re-generate dataframes for both nodes and edges, now containing
+# calculated network attributes
+node_list <- get.data.frame(epl.network, what = "vertices")
+
+# Determine a community for each edge. If two nodes belong to the
+# same community, label the edge with that community. If not,
+# the edge community value is 'NA'
+edge_list <- get.data.frame(epl.network, what = "edges") %>%
+  inner_join(node_list %>% select(name, group.label), by = c("from" = "name")) %>%
+  inner_join(node_list %>% select(name, group.label), by = c("to" = "name")) %>%
+  mutate(group = as.factor(group.label.x))
+
+# Create a character vector containing every node name
+all_nodes <- sort(node_list$name)
+
+# Adjust the 'to' and 'from' factor levels so they are equal
+# to this complete list of node names
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = all_nodes),
+        from = factor(from, levels = all_nodes))
+
+name_order <- (node_list %>% arrange(group.label))$name
+
+# Reorder edge_list "from" and "to" factor levels based on
+# this new name_order
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = name_order),
+        from = factor(from, levels = name_order))
+
+epl.adjacency <- ggplot(plot_data, aes(x = from, y = to, fill = group)) +
+    geom_raster() +
+    # Because we need the x and y axis to display every node,
+    # not just the nodes that have connections to each other,
+    # make sure that ggplot does not drop unused factor levels
+    scale_x_discrete(drop = FALSE) +
+    scale_y_discrete(drop = FALSE) +
+    xlab(NULL) + ylab(NULL) + 
+    scale_fill_manual(values = colors[c(-10, -12)],
+                      labels = leagues[c(-10, -12)],
+                      name = "Leagues") +
+    theme(
+        # Rotate the x-axis lables so they are legible
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        # Force the plot into a square aspect ratio
+        aspect.ratio = 1
+        # Hide the legend (optional)
+        )
+
+epl.adjacency
+```
+
+###### La Liga
+
+
+```{r}
+laliga.links <- team_links %>%
+    filter(from %in% laliga.list | to %in% laliga.list)
+
+laliga.nodes <- team_nodes %>%
+    filter(id %in% unique(c(as.character(laliga.links$from), as.character(laliga.links$to))))
+```
+
+```{r}
+laliga.network <- graph_from_data_frame(d = laliga.links, vertices = laliga.nodes, directed = TRUE)
+```
+
+```{r}
+V(laliga.network)$degree <- degree(laliga.network)
+V(laliga.network)$closeness <- centralization.closeness(laliga.network)$res
+V(laliga.network)$betweenness <- centralization.betweenness(laliga.network)$res
+V(laliga.network)$eigen <- centralization.evcent(laliga.network)$vector
+```
+
+```{r}
+E(laliga.network)$width <- log(E(laliga.network)$weight + 1)
+E(laliga.network)$width[E(laliga.network)$width < 0.5] <- 0.5
+V(laliga.network)$size <- log(V(laliga.network)$value + 1) * 1.5
+
+edge.color <- 1:length(E(laliga.network))
+
+for(i in 1:nrow(laliga.nodes)){
+    index <- incident(laliga.network, V(laliga.network)[i], mode = 'out')
+    group_index <- laliga.nodes[i, "group.label"]
+    edge.color[index] <- colors[group_index]
+}
+
+vertex.color <- colors[V(laliga.network)$group.label]
+
+plot(laliga.network, edge.arrow.size = .02,
+     vertex.frame.color = adjustcolor("#555555", alpha = .3),
+     edge.color = adjustcolor(edge.color, alpha.f = .7),
+     vertex.color = adjustcolor(vertex.color, alpha = .6),
+     vertex.label = V(laliga.network)$label,
+     vertex.label.color = "black",
+     vertex.label.cex = .35, 
+     vertex.label.family = "Helvetica",
+     layout=layout_nicely(laliga.network)
+     )
+
+legend(x = -.9, y = -1, label, pch = 21, cex = 0.5,
+       text.width = 0.2, col= adjustcolor(vertex.color, alpha.f = .4),
+       pt.bg = adjustcolor(colors, alpha = .6), pt.cex = 1, bty = "n", ncol = 5)
+```
+
+
+```{r}
+# Re-generate dataframes for both nodes and edges, now containing
+# calculated network attributes
+node_list <- get.data.frame(laliga.network, what = "vertices")
+
+# Determine a community for each edge. If two nodes belong to the
+# same community, label the edge with that community. If not,
+# the edge community value is 'NA'
+edge_list <- get.data.frame(laliga.network, what = "edges") %>%
+  inner_join(node_list %>% select(name, group.label), by = c("from" = "name")) %>%
+  inner_join(node_list %>% select(name, group.label), by = c("to" = "name")) %>%
+  mutate(group = as.factor(group.label.x))
+
+# Create a character vector containing every node name
+all_nodes <- sort(node_list$name)
+
+# Adjust the 'to' and 'from' factor levels so they are equal
+# to this complete list of node names
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = all_nodes),
+        from = factor(from, levels = all_nodes))
+
+name_order <- (node_list %>% arrange(group.label))$name
+
+# Reorder edge_list "from" and "to" factor levels based on
+# this new name_order
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = name_order),
+        from = factor(from, levels = name_order))
+
+laliga.adjacency <- ggplot(plot_data, aes(x = from, y = to, fill = group)) +
+    geom_raster() +
+    # Because we need the x and y axis to display every node,
+    # not just the nodes that have connections to each other,
+    # make sure that ggplot does not drop unused factor levels
+    scale_x_discrete(drop = FALSE) +
+    scale_y_discrete(drop = FALSE) +
+    xlab(NULL) + ylab(NULL) + 
+    scale_fill_manual(values = colors[c(-1, -10, -12)],
+                      labels = leagues[c(-1, -10, -12)],
+                      name = "Leagues") +
+    theme(
+        # Rotate the x-axis lables so they are legible
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        # Force the plot into a square aspect ratio
+        aspect.ratio = 1
+        # Hide the legend (optional)
+        )
+
+laliga.adjacency
+```
+
+###### Bundesliga
+
+
+```{r}
+bundes.links <- team_links %>%
+    filter(from %in% bundes.list | to %in% bundes.list)
+
+bundes.nodes <- team_nodes %>%
+    filter(id %in% unique(c(as.character(bundes.links$from), as.character(bundes.links$to))))
+```
+
+```{r}
+bundes.network <- graph_from_data_frame(d = bundes.links, vertices = bundes.nodes, directed = TRUE)
+```
+
+```{r}
+V(bundes.network)$degree <- degree(bundes.network)
+V(bundes.network)$closeness <- centralization.closeness(bundes.network)$res
+V(bundes.network)$betweenness <- centralization.betweenness(bundes.network)$res
+V(bundes.network)$eigen <- centralization.evcent(bundes.network)$vector
+```
+
+```{r}
+E(bundes.network)$width <- log(E(bundes.network)$weight + 1)
+E(bundes.network)$width[E(bundes.network)$width < 0.5] <- 0.5
+V(bundes.network)$size <- log(V(bundes.network)$value + 1) * 1.5
+
+edge.color <- 1:length(E(bundes.network))
+
+for(i in 1:nrow(bundes.nodes)){
+    index <- incident(bundes.network, V(bundes.network)[i], mode = 'out')
+    group_index <- bundes.nodes[i, "group.label"]
+    edge.color[index] <- colors[group_index]
+}
+
+vertex.color <- colors[V(bundes.network)$group.label]
+
+plot(bundes.network, edge.arrow.size = .02,
+     vertex.frame.color = adjustcolor("#555555", alpha = .3),
+     edge.color = adjustcolor(edge.color, alpha.f = .7),
+     vertex.color = adjustcolor(vertex.color, alpha = .6),
+     vertex.label = V(bundes.network)$label,
+     vertex.label.color = "black",
+     vertex.label.cex = .35, 
+     vertex.label.family = "Helvetica",
+     layout=layout_nicely(bundes.network)
+     )
+
+legend(x = -.9, y = -1, label, pch = 21, cex = 0.5,
+       text.width = 0.2, col= adjustcolor(vertex.color, alpha.f = .4),
+       pt.bg = adjustcolor(colors, alpha = .6), pt.cex = 1, bty = "n", ncol = 5)
+```
+
+
+```{r}
+# Re-generate dataframes for both nodes and edges, now containing
+# calculated network attributes
+node_list <- get.data.frame(bundes.network, what = "vertices")
+
+# Determine a community for each edge. If two nodes belong to the
+# same community, label the edge with that community. If not,
+# the edge community value is 'NA'
+edge_list <- get.data.frame(bundes.network, what = "edges") %>%
+  inner_join(node_list %>% select(name, group.label), by = c("from" = "name")) %>%
+  inner_join(node_list %>% select(name, group.label), by = c("to" = "name")) %>%
+  mutate(group = as.factor(group.label.x))
+
+edge_list <- data.frame(from = c(edge_list$from, edge_list$to),
+                        to = c(edge_list$to, edge_list$from),
+                        group.label.x = rep(edge_list$group.label.x, 2),
+                        group.label.y = rep(edge_list$group.label.y, 2),
+                        group = rep(edge_list$group, 2)
+                        )
+
+# Create a character vector containing every node name
+all_nodes <- sort(node_list$name)
+
+# Adjust the 'to' and 'from' factor levels so they are equal
+# to this complete list of node names
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = all_nodes),
+        from = factor(from, levels = all_nodes))
+
+name_order <- (node_list %>% arrange(group.label))$name
+
+# Reorder edge_list "from" and "to" factor levels based on
+# this new name_order
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = name_order),
+        from = factor(from, levels = name_order))
+
+bundes.adjacency <- ggplot(plot_data, aes(x = from, y = to, fill = group)) +
+    geom_raster() +
+    # Because we need the x and y axis to display every node,
+    # not just the nodes that have connections to each other,
+    # make sure that ggplot does not drop unused factor levels
+    scale_x_discrete(drop = FALSE) +
+    scale_y_discrete(drop = FALSE) +
+    xlab(NULL) + ylab(NULL) + 
+    scale_fill_manual(values = colors[c(-1, -5, -8, -9, -10)],
+                      labels = leagues[c(-1, -5, -8, -9, -10)],
+                      name = "Leagues") +
+    theme(
+        # Rotate the x-axis lables so they are legible
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        # Force the plot into a square aspect ratio
+        aspect.ratio = 1
+        # Hide the legend (optional)
+        )
+
+bundes.adjacency
+```
+
+###### Serie A
+
+```{r}
+seriea.links <- team_links %>%
+    filter(from %in% seriea.list | to %in% seriea.list)
+
+seriea.nodes <- team_nodes %>%
+    filter(id %in% unique(c(as.character(seriea.links$from), as.character(seriea.links$to))))
+```
+
+```{r}
+seriea.network <- graph_from_data_frame(d = seriea.links, vertices = seriea.nodes, directed = TRUE)
+```
+
+```{r}
+V(seriea.network)$degree <- degree(seriea.network)
+V(seriea.network)$closeness <- centralization.closeness(seriea.network)$res
+V(seriea.network)$betweenness <- centralization.betweenness(seriea.network)$res
+V(seriea.network)$eigen <- centralization.evcent(seriea.network)$vector
+```
+
+```{r}
+E(seriea.network)$width <- log(E(seriea.network)$weight + 1)
+E(seriea.network)$width[E(seriea.network)$width < 0.5] <- 0.5
+V(seriea.network)$size <- log(V(seriea.network)$value + 1) * 1.5
+
+edge.color <- 1:length(E(seriea.network))
+
+for(i in 1:nrow(seriea.nodes)){
+    index <- incident(seriea.network, V(seriea.network)[i], mode = 'out')
+    group_index <- seriea.nodes[i, "group.label"]
+    edge.color[index] <- colors[group_index]
+}
+
+vertex.color <- colors[V(seriea.network)$group.label]
+
+plot(seriea.network, edge.arrow.size = .02,
+     vertex.frame.color = adjustcolor("#555555", alpha = .3),
+     edge.color = adjustcolor(edge.color, alpha.f = .7),
+     vertex.color = adjustcolor(vertex.color, alpha = .6),
+     vertex.label = V(seriea.network)$label,
+     vertex.label.color = "black",
+     vertex.label.cex = .35, 
+     vertex.label.family = "Helvetica",
+     layout=layout_nicely(seriea.network)
+     )
+
+legend(x = -.9, y = -1, label, pch = 21, cex = 0.5,
+       text.width = 0.2, col= adjustcolor(vertex.color, alpha.f = .4),
+       pt.bg = adjustcolor(colors, alpha = .6), pt.cex = 1, bty = "n", ncol = 5)
+```
+
+
+```{r}
+# Re-generate dataframes for both nodes and edges, now containing
+# calculated network attributes
+node_list <- get.data.frame(seriea.network, what = "vertices")
+
+# Determine a community for each edge. If two nodes belong to the
+# same community, label the edge with that community. If not,
+# the edge community value is 'NA'
+edge_list <- get.data.frame(seriea.network, what = "edges") %>%
+  inner_join(node_list %>% select(name, group.label), by = c("from" = "name")) %>%
+  inner_join(node_list %>% select(name, group.label), by = c("to" = "name")) %>%
+  mutate(group = as.factor(group.label.x))
+
+# Create a character vector containing every node name
+all_nodes <- sort(node_list$name)
+
+# Adjust the 'to' and 'from' factor levels so they are equal
+# to this complete list of node names
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = all_nodes),
+        from = factor(from, levels = all_nodes))
+
+name_order <- (node_list %>% arrange(group.label))$name
+
+# Reorder edge_list "from" and "to" factor levels based on
+# this new name_order
+plot_data <- edge_list %>% mutate(
+        to = factor(to, levels = name_order),
+        from = factor(from, levels = name_order))
+
+seriea.adjacency <- ggplot(plot_data, aes(x = from, y = to, fill = group)) +
+    geom_raster() +
+    # Because we need the x and y axis to display every node,
+    # not just the nodes that have connections to each other,
+    # make sure that ggplot does not drop unused factor levels
+    scale_x_discrete(drop = FALSE) +
+    scale_y_discrete(drop = FALSE) +
+    xlab(NULL) + ylab(NULL) + 
+    scale_fill_manual(values = colors[c(-5, -10, -12)],
+                      labels = leagues[c(-5, -10, -12)],
+                      name = "Leagues") +
+    theme(
+        # Rotate the x-axis lables so they are legible
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        # Force the plot into a square aspect ratio
+        aspect.ratio = 1
+        # Hide the legend (optional)
+        )
+
+seriea.adjacency
+```
+
+#### Let's Analyze
+
+###### Whole Network
+
+```{r, message = FALSE}
+# Betweenness Centrality of Whole network
+whole.between <- betweenness(network, weights = E(network)$weight, normalized = T)
+whole.between <- sort(whole.between, decreasing = TRUE)
+head(round(whole.between, 3), 10)
+index <- as.numeric(gsub(x = names(head(whole.between, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+whole.eigen <- eigen_centrality(network, directed = TRUE)
+whole.eigen <- sort(whole.eigen$vector, decreasing = TRUE)
+head(round(whole.eigen, 3), 10)
+index <- as.numeric(gsub(x = names(head(whole.eigen, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+whole.degree <- degree(network, mode = "total", normalized = TRUE)
+whole.degree <- sort(whole.degree, decreasing = TRUE)
+head(round(whole.degree, 3), 10)
+index <- as.numeric(gsub(x = names(head(whole.degree, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r, message = FALSE}
+whole.in <- degree_distribution(network, cumulative = FALSE, mode = 'in')
+whole.in <- data.frame(Degree = 0:(length(whole.in) - 1),
+                       Proportion = whole.in)
+
+whole1 <- ggplot(whole.in[-1, ], aes(x = Degree, y = Proportion)) + 
+    geom_line() + 
+    geom_point() + 
+    scale_x_log10(breaks = 1:31,
+                  labels = c(1, rep("", 8), 10, rep("", 9), 20, rep("", 9), 30, "")) + 
+    scale_y_log10() + 
+    stat_function(fun = function(x){(log(x^(-.66))) - 0.42}, color = 'red', size = 1.2) + 
+    xlab(expression(k[In])) + ylab(expression(P(k[In])))
+    
+whole1
+```
+
+```{r}
+temp <- ggplot_build(whole1)$data[[3]]
+
+(temp[10, 2] - temp[2, 2])/(temp[10, 1] - temp[2, 1])
+```
+
+
+```{r, message = FALSE}
+whole.out <- degree_distribution(network, cumulative = FALSE, mode = 'out')
+whole.out <- data.frame(Degree = 0:(length(whole.out) - 1),
+                       Proportion = whole.out)
+
+whole2 <- ggplot(whole.out[-1, ], aes(x = Degree, y = Proportion)) + 
+    geom_line() + 
+    geom_point() + 
+    scale_x_log10(breaks = 1:31,
+                  labels = c(1, rep("", 8), 10, rep("", 9), 20, rep("", 9), 30, "")) + 
+    scale_y_log10() + 
+    stat_function(fun = function(x){(log(x^(-.8))) - 0.5}, color = 'red', size = 1.2) + 
+    xlab(expression(k[Out])) + ylab(expression(P(k[Out])))
+    
+whole2
+```
+
+```{r}
+temp <- ggplot_build(whole2)$data[[3]]
+
+(temp[10, 2] - temp[2, 2])/(temp[10, 1] - temp[2, 1])
+```
+
+```{r}
+library(gridExtra)
+
+```
+
+
+###### EPL 
+
+```{r, message = FALSE}
+# Betweenness Centrality of Whole network
+epl.between <- betweenness(epl.network, normalized = TRUE)
+epl.between <- sort(epl.between, decreasing = TRUE)
+head(round(epl.between, 3), 10)
+index <- as.numeric(gsub(x = names(head(epl.between, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+epl.eigen <- eigen_centrality(epl.network, directed = TRUE)
+epl.eigen <- sort(epl.eigen$vector, decreasing = TRUE)
+head(round(epl.eigen, 3), 10)
+index <- as.numeric(gsub(x = names(head(epl.eigen, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+epl.degree <- degree(epl.network, mode = "total", normalized = TRUE)
+epl.degree <- sort(epl.degree, decreasing = TRUE)
+head(round(epl.degree, 3), 10)
+index <- as.numeric(gsub(x = names(head(epl.degree, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+
+```{r}
+epl.dd <- degree_distribution(epl.network, cumulative = FALSE)
+epl.dd <- data.frame(Degree = 0:(length(epl.dd) - 1),
+                       Proportion = epl.dd)
+epl.dd
+ggplot(epl.dd[-1, ], aes(x = Degree, y = Proportion)) + 
+    geom_point() + 
+    geom_line() + 
+    scale_x_log10() + scale_y_log10() + geom_smooth(method = "lm")
+    
+```
+
+###### La Liga
+
+```{r, message = FALSE}
+# Betweenness Centrality of Whole network
+laliga.between <- betweenness(laliga.network, normalized = TRUE)
+laliga.between <- sort(laliga.between, decreasing = TRUE)
+head(round(laliga.between, 3), 10)
+index <- as.numeric(gsub(x = names(head(laliga.between, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+laliga.eigen <- eigen_centrality(laliga.network, directed = TRUE, scale = TRUE)
+laliga.eigen <- sort(laliga.eigen$vector, decreasing = TRUE)
+head(round(laliga.eigen, 3), 10)
+index <- as.numeric(gsub(x = names(head(laliga.eigen, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+laliga.degree <- degree(laliga.network, mode = "total", normalized = TRUE)
+laliga.degree <- sort(laliga.degree, decreasing = TRUE)
+head(round(laliga.degree, 3), 10)
+index <- as.numeric(gsub(x = names(head(laliga.degree, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+
+```{r}
+laliga.dd <- degree_distribution(laliga.network)
+laliga.dd <- data.frame(Degree = 0:(length(laliga.dd) - 1),
+                       Proportion = laliga.dd)
+laliga.dd
+ggplot(laliga.dd[-1, ], aes(x = Degree, y = Proportion)) + 
+    geom_point() + 
+    geom_line() + 
+    scale_x_log10() + scale_y_log10() + geom_smooth(method = "lm")
+```
+
+###### Bundesliga
+
+```{r, message = FALSE}
+# Betweenness Centrality of Whole network
+bundes.between <- betweenness(bundes.network, normalized = TRUE)
+bundes.between <- sort(bundes.between, decreasing = TRUE)
+head(round(bundes.between, 3), 10)
+index <- as.numeric(gsub(x = names(head(bundes.between, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+bundes.eigen <- eigen_centrality(bundes.network, directed = TRUE, scale = TRUE)
+bundes.eigen <- sort(bundes.eigen$vector, decreasing = TRUE)
+head(round(bundes.eigen, 3), 10)
+index <- as.numeric(gsub(x = names(head(bundes.eigen, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+bundes.degree <- degree(bundes.network, mode = "total", normalized = TRUE)
+bundes.degree <- sort(bundes.degree, decreasing = TRUE)
+head(round(bundes.degree, 3), 10)
+index <- as.numeric(gsub(x = names(head(bundes.degree, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+
+```{r}
+bundes.dd <- degree_distribution(bundes.network)
+bundes.dd <- data.frame(Degree = 0:(length(bundes.dd) - 1),
+                       Proportion = bundes.dd)
+bundes.dd
+ggplot(bundes.dd[-1, ], aes(x = Degree, y = Proportion)) + 
+    geom_point() + 
+    geom_line() + 
+    scale_x_log10() + scale_y_log10() + geom_smooth(method = "lm")
+```
+
+###### Serie A
+
+```{r, message = FALSE}
+# Betweenness Centrality of Whole network
+seriea.between <- betweenness(seriea.network, normalized = TRUE)
+seriea.between <- sort(seriea.between, decreasing = TRUE)
+head(round(seriea.between, 3), 10)
+index <- as.numeric(gsub(x = names(head(seriea.between, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+seriea.eigen <- eigen_centrality(seriea.network, directed = TRUE, scale = TRUE)
+seriea.eigen <- sort(seriea.eigen$vector, decreasing = TRUE)
+head(round(seriea.eigen, 3), 10)
+index <- as.numeric(gsub(x = names(head(seriea.eigen, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+```{r}
+seriea.degree <- degree(seriea.network, mode = "total", normalized = TRUE)
+seriea.degree <- sort(seriea.degree, decreasing = TRUE)
+head(round(seriea.degree, 3), 10)
+index <- as.numeric(gsub(x = names(head(seriea.degree, 10)), pattern = "team", replacement = ""))
+team_nodes[index, ]
+```
+
+
+```{r}
+seriea.dd <- degree_distribution(seriea.network)
+seriea.dd <- data.frame(Degree = 0:(length(seriea.dd) - 1),
+                       Proportion = seriea.dd)
+seriea.dd
+
+insert_minor <- function(major_labs, n_minor) {labs <- 
+                              c( sapply( major_labs, function(x) c(x, rep("", 4) ) ) )
+                              labs[1:(length(labs)-n_minor)]}
+
+ggplot(seriea.dd[-1, ], aes(x = Degree, y = Proportion)) + 
+    geom_point() + 
+    geom_line() + 
+    scale_x_log10() + scale_y_log10() + geom_smooth(method = "lm")
+```
+
+```{r}
+networkInfo <- function(network){
+    numEdge <- length(E(network))
+    numNode <- length(V(network))
+    sumWeight <- round(sum(E(network)$weight), 2)
+    averageWeight <- round(sumWeight/numNode, 2)
+    
+    cat("#Edge:", numEdge, "\n#Node:", numNode, "\nTotal Transfer Fee:", paste0(sumWeight, "m\nAverage Transfer Fee per Event: ", paste0(averageWeight, "m\n")))
+}
+
+networkInfo(epl.network)
+networkInfo(laliga.network)
+networkInfo(bundes.network)
+networkInfo(seriea.network)
+```
+
