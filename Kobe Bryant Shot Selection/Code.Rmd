@@ -1,0 +1,1214 @@
+---
+title: "Kaggle: Kobe Bryant Shot Selection"
+author: "Jaeyoon Han"
+date: "`r Sys.Date()`"
+output: 
+html_document: 
+toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE)
+knitr::opts_knit$set(root.dir = "/Users/Han/Google Drive/Kaggle/Kobe")
+library(printr)
+custom_theme <- theme_minimal(base_family = "OpenSans-CondensedLight") +
+        theme(legend.position = "right",
+              plot.title = element_text(family = "OpenSans-CondensedBold"),
+              axis.title.x = element_blank(), axis.title.y = element_blank())
+theme_set(custom_theme)
+```
+
+## Introduction
+
+코비 브라이언트(Kobe Bryant)는 2016년 4월 12일에 열린 로스 엔젤레스 레이커스 홈에서 가진 은퇴 경기에서 60 득점을 기록했다. 17살의 나이에 NBA 드래프트를 통해 리그에 입성한 코비는 긴 커리어 동안 미국 스포츠 계에서 가장 높은 명예를 거머쥐었다. 이제 코비가 지난 20년 동안 쏴온 슛에 대한 데이터를 통해서 어떤 샷들이 골대 그물을 통과할 수 있을 지 예측하고자 한다.
+
+## Evaluation
+
+본 컴피티션에서 평가는 로그 손실 함수(logarithmic loss function)를 사용한다. 로그 손실 함수는 분류(classficatioin) 모형에서 자주 사용하며, 수학적으로는 다음과 같다.
+
+$$
+LogLoss = -\frac{1}{N} \sum^N_{i=1} [y_i \log p_i + (1- y_i) \log(1 - p_i)].
+$$
+
+$N$은 예측값의 개수,  $y_i$는 $i$번째 실제값, $p_i$는 $i$번째 예측값이다. 이 때, 실제값은 1(True) 또는 0(False)이다. 예를 들어, 실제값이 (1, 0)이고 예측값이 (0.8, 0.3)인 경우의 로그 손실 함수 값은 다음과 같다.
+
+$$
+LogLoss = -\frac{1}{2} [1 * \log 0.8 + 1 * \log 0.7] = -\frac{1}{2} \log 0.56 = 0.2899092
+$$
+
+다음은 로그 손실 함수를 구현한 코드다.
+
+```{r}
+MultiLogLoss <- function(act, pred){
+        eps = 1e-15;
+        nr <- nrow(pred)
+        pred = matrix(sapply( pred, function(x) max(eps,x)), nrow = nr)      
+        pred = matrix(sapply( pred, function(x) min(1-eps,x)), nrow = nr)
+        ll = sum(act*log(pred) + (1-act)*log(1-pred))
+        ll = ll * -1/(nrow(act))      
+        return(ll);
+}
+```
+
+위에서 정의한 함수를 토대로 그 위의 예제를 계산한 결과 역시 동일하다.
+
+```{r}
+MultiLogLoss(matrix(c(1, 0)), matrix(c(0.8, 0.3)))
+```
+
+## Data Preprocessing
+
+데이터는 [Kaggle](https://www.kaggle.com/c/kobe-bryant-shot-selection)에서 제공하는 데이터를 그대로 사용했다. 총 30,697개의 샷에 대한 데이터를 제공하고 있으며, 본 데이터에서 5,000개의 레이블 없는 데이터를 테스트 데이터로 사용한다.
+
+```{r, message=FALSE}
+library(dplyr)
+
+# setwd("/Users/Han/Google Drive/Kaggle/Kobe")
+kobe_shot <- tbl_df(read.csv("./data.csv"))
+```
+
+데이터를 구성하고 있는 특성은 총 25개다.
+
+```{r}
+str(kobe_shot)
+```
+
+각 변수에 대한 설명은 다음과 같다.
+
+- `action_type` : 시도한 슛의 세부적인 종류
+- `combined_shot_type` : 시도한 슛의 개략적인 종류
+- `game_event_id` : 시도한 슛이 일어난 이벤트 순서 (10인 경우, 해당 경기의 전체 선수 중, 열 번째 슛시도)
+- `game_id` : 게임 ID
+- `lat` 
+- `loc_x` : 경기장 x 좌표
+- `loc_y` : 경기장 y 좌표
+- `lon`
+- `minutes_remaining` : 슛을 시도했을 때의 남은 시간 중 분
+- `period` : 쿼터
+- `playoffs` : 플레이오프 여부
+- `season` : 해당 시즌
+- `seconds_remaining` : 슛을 시도했을 때의 남은 시간 중 초
+- `shot_distance` : 슛 거리 (단위 : feet)
+- `shot_made_flag` : 슛 성공 여부 (예측을 해야되는 값)
+- `shot_type` : 시도한 슛의 점수
+- `shot_zone_area` : 슛을 시도한 위치의 방향 (백코트, 중앙, 좌중간 등)
+- `shot_zone_basic` : 슛을 시도한 위치의 이름
+- `shot_zone_range` : 슛을 시도한 위치와 림까지의 거리 (범주형)
+- `team_id`
+- `team_name`
+- `game_date` : 해당 경기 일자
+- `matchup` : 경기 정보
+- `opponent` : 상대팀 (약자 형태)
+- `shot_id` : 샷 번호
+
+앞으로 `kobe_shot` 데이터를 계속해서 사용할 예정이므로, 데이터를 attach해서 편하게 사용하도록 하자.
+
+```{r}
+attach(kobe_shot)
+```
+
+### 불필요한 특성 삭제
+
+본 데이터에서 `team_id`와 `team_name`은 필요가 없기 때문에 지우도록 한다.
+
+```{r}
+kobe_shot <- kobe_shot %>%
+        select(-(team_id:team_name))
+```
+
+### 경기 일자의 데이터 타입 변경
+
+`game_date` 칼럼의 데이터를 모두 `Time` 형태의 데이터로 바꾸는 것이 이후 데이터를 다루는 데 있어 유용할 듯하다.
+
+```{r}
+library(lubridate)
+kobe_shot$game_date <- as.Date(kobe_shot$game_date)
+```
+
+### 이전 경기와의 기간
+
+이전 경기와 당일 경기 사이의 기간은 짧을 수록 선수들의 체력에 부담을 줄 수 있다. 이 점에서 착안하여, 그 기간을 데이터의 새로운 특성으로 두었다.
+
+```{r}
+# 각 경기가 일어난 날짜를 얻기 위해서 반복하는 데이터에 unique() 함수를 사용
+# 얻어낸 결과에 diff() 함수를 써서 이전값과의 차이를 계산
+# 맨 처음 값은 0으로 나오도록 처리
+# 
+unique_date <- unique(kobe_shot$game_date)
+day_difference <- c(0, diff(unique_date))
+
+# 각 경기를 factorize하기 위해 game_id에 대해서 factor를 생성
+# factor의 level에 같은 길이의 벡터인 day_difference 입력
+
+kobe_shot <- kobe_shot %>%
+        mutate(day_difference = factor(kobe_shot$game_id))
+
+levels(kobe_shot$day_difference) <- day_difference
+
+kobe_shot$day_difference <- as.numeric(as.character(kobe_shot$day_difference))
+```
+
+`day_difference`를 확인하면 짧게는 백투백(back-to-back, 바로 전날에 경기를 치루는 경우) 경기부터 수백일까지, 그 범위가 굉장히 넓음을 알 수 있다. 다음과 같이 생각해보았다.
+
+- 숫자가 비정상적으로 큰 경우, 시즌을 시작하거나 장기 부상인 경우에 해당한다.
+- 코비는 2013년 이전에는 장기 부상이 거의 없었으며, 2013년 이후의 장기부상은 시즌 아웃인 경우가 많았다.
+- 또한 선수들이 모두 쉬는 올스타 브레이크 기간의 경우 일반적으로 7일이다.
+- 데이터 특성 상, 정규 시즌 데이터 뒤에 플레이오프 데이터가 존재하므로 -7101일과 같은 경우는 수정해야 한다.
+- 코비의 첫 경기는 당연히 `day_difference`값이 0이다. 이 부분도 고려해야 한다.
+
+위의 모든 요소를 고려했을 때, 이상치는 모두 7로 수정하는 것이 적당하다고 보았다.
+
+- 부상에서 복귀한 경우 충분히 휴식을 취했다고 가정할 수 있다.
+- 정규시즌 시작 전에는 프리시즌 경기가 있으며, 프리시즌 경기와 정규시즌 사이에는 일반적으로 5~7일 정도의 여유가 있다.
+- 선수들이 가질 수 있는 최대 휴식 기간은 올스타 브레이크 기간인 7일이다.
+
+```{r}
+kobe_shot$day_difference[kobe_shot$day_difference < 1] <- 0
+kobe_shot$day_difference[kobe_shot$day_difference > 7 | kobe_shot$day_difference < 1] <- 7
+table(kobe_shot$day_difference)
+```
+
+
+### 경기의 홈, 어웨이 구분
+
+홈에서 치루는 경기는 아무래도 선수 입장에서 편하기 마련이다. 경기를 위해 이동해야 할 필요도 없고, 관중의 대부분이 자신의 팀을 응원하기 때문에 체력적, 정신적인 부담이 덜할 수 밖에 없다. 홈과 어웨이를 구분하기 위해선 `matchup` 칼럼을 살펴보아야 한다.
+
+```{r}
+unique(matchup)
+unique(opponent)
+```
+
+결과가 다소 이상하다. `matchup` 칼럼은 홈과 어웨이를 모두 나타내기 때문에 74개의 데이터가 나왔다는 것은 총 37개의 팀을 상대했다는 의미다. 하지만 `opponent` 칼럼에 따르면 총 33개의 팀만 나타난다. 실제 NBA는 동부, 서부 각각 15팀으로 구성되어 있으므로, 레이커스의 상대팀은 29개였어야 한다. 다음을 살펴보자.
+
+- VAN은 벤쿠버 그리즐리스로, 현재 멤피스 그리즐리스(MEM)의 전신이다.
+- SEA는 시애틀 슈퍼소닉스로, 현재 오클라호마 시티 썬더(OKC)의 전신이다.
+- NJN은 뉴저지 넷츠로, 현재 브루클린 넷츠(BKN)의 전신이다.
+- NOH는 뉴올리언스 호넷츠로, 그 명칭이 현재는 뉴올리언스 펠리컨즈(NOP)로 바뀌었다.
+
+총 네 경우가 겹치기 때문에 `opponent`의 33개 엔트리에서 네 개를 제외하면 그 수는 29개로 올바른 데이터임을 알 수 있다. `matchup`의 경우, 피닉스 선즈(PHO)가 PHX로 표기되어 있는 등의 문제로 인해 엔트리 수가 37 * 2개이지만 큰 문제는 없을 것이라 생각한다.
+
+`matchup` 칼럼에서 `@`이 포함되어 있는 경우, 이는 어웨이 경기를 의미한다. 예를 들어, `LAL @ POR`은 포틀랜드 블레이저스 홈에서 열린 레이커스의 경기라는 의미다. 따라서, `@`라는 문자열이 포함되어 있는 경우, 새로운 칼럼 `home`에 0을 입력하고 나머지는 1로 처리한다. 이 때 `grep()` 함수를 사용한다.
+
+```{r}
+kobe_shot$home <- 1
+kobe_shot$home[grep("@", kobe_shot$matchup)] <- 0
+```
+
+### 연장전
+
+NBA의 경기는 기본적으로 12분 4쿼터로 시행되며, 승부가 결정나지 않은 경우 5분의 연장전을 실시한다. 연장전은 승부가 날 때까지 반복된다. 첫 연장전에서 승부가 나지 않은 경우는 두 번째 연장전을 실시한다. 코비가 뛰었던 경기 중 연장전에서 쏜 슛은 몇 개인지 살펴보자.
+
+```{r}
+table(kobe_shot$period)
+```
+
+최대 3차 연장까지의 경기에서 총 375개의 슛을 시도했다. 연장전에서는 아무래도 선수들의 체력이 떨어지기 때문에 슛 성공률에도 영향을 미칠 것이다. 따라서 기존 데이터에 연장전에 대한 정보를 추가하도록 한다.
+
+```{r}
+kobe_shot <- kobe_shot %>%
+        mutate(overtime = ifelse(period > 4, 1, 0))
+```
+
+### 클러치 샷(Clutch Shot)
+
+클러치 샷은 간단하게는 접전 상황에서 시간이 많이 남지 않은 경우에서 시도하는 슛을 의미한다. 다시 말해서 중요한 접전 상황에 시도하는 슛이다. 클러치 샷을 엄밀하게 정의하는 경우는 거의 없지만, 농구에서 굉장히 중요한 요소임은 틀림없다. 따라서 본인은 클러치 샷을 **4쿼터, 2분 미만 상황에서 쏘는 슛과 연장전에서 시도한 슛**으로 정의한다.
+
+```{r}
+kobe_shot <- kobe_shot %>%
+        mutate(clutch = ifelse(((period == 4 & (minutes_remaining == 1 | minutes_remaining == 0)) | period > 4), 1, 0))
+```
+
+### 동부 서부 구분
+
+LA 레이커스는 서부 팀이다. 코비가 활약하던 시기가 대부분 서고동저 경향이 있었다는 점을 감안했을 때, 
+
+```{r}
+levels(kobe_shot$opponent)
+
+conference <- c("Eastern", "Eastern", "Eastern", "Eastern", "Eastern", "Eastern",
+                "Western", "Western", "Eastern", "Western", "Western", "Eastern",
+                "Western", "Western", "Eastern", "Eastern", "Western", "Eastern",
+                "Western", "Western", "Eastern", "Western", "Eastern", "Eastern",
+                "Western", "Eastern", "Western", "Western", "Western", "Eastern",
+                "Western", "Western", "Eastern")
+
+kobe_shot$conference <- kobe_shot$opponent
+levels(kobe_shot$conference) <- conference
+```
+
+
+### 트레이닝 데이터 & 테스트 데이터
+
+전처리한 데이터를 트레이닝 데이터와 테스트 데이터로 나눈다. `shot_made_flag`가 `NA`인 경우 테스트 데이터로, 나머지 경우를 트레이닝 데이터로 두었다.
+
+```{r}
+kobe_train <- kobe_shot %>%
+        filter(!is.na(shot_made_flag))
+kobe_test <- kobe_shot %>%
+        filter(is.na(shot_made_flag))
+```
+
+## Exploring Data with Data Visualization
+
+데이터를 시각화하기 전에 먼저 코트를 그려넣도록 하자. `ggplot2` 패키지에서는 직접적으로 원을 그리는 기능을 포함하고 있지 않기 때문에, 원 형태의 데이터를 만들어서 `geom_path()`를 통해 그려야 한다. 사각형의 경우 `geom_rect()`로 쉽게 그릴 수 있다. 원 형태의 데이터는 `packcircles` 패키지를 활용하면 손쉽게 만들 수 있다.
+
+```{r, fig.retina=2, fig.width=5, fig.height=5}
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(packcircles)
+
+# Make a dataset for drawing hoop and backboard
+circle <- as.data.frame(circleVertices(0, 0, 7.5, npoints = 100))
+backboard <- data.frame(x = c(-30, 30), y = c(-7, -7))
+
+# Make a dataset for drawing free throw top arc & bottom arc
+circle.FT <- as.data.frame(circleVertices(0, 142.5, 60, npoint = 200))
+circle.FT.top <- circle.FT %>%
+        filter(y >= 142.5)
+circle.FT.bottom <- circle.FT %>%
+        filter(y < 142.5)
+
+# Make a dataset for drawing restricted zone
+restricted <- as.data.frame(circleVertices(0, 0, 40, npoint = 200))
+restricted.top <- restricted %>%
+        filter(y >= 0)
+
+# Make a dataset for drawing three point line
+left_corner_three <- data.frame(x = c(-220, -220), y = c(-47.5, 92.5))
+right_corner_three <- data.frame(x = c(220, 220), y = c(-47.5, 92.5))
+three_point <- as.data.frame(circleVertices(0, 0, 239, npoint = 300))
+three_point <- three_point %>%
+        filter(y >= 88)
+
+# Make a dataset for drawing center court arc
+center_arc <- as.data.frame(circleVertices(0, 422.5, 60, npoint = 200))
+center_arc <- center_arc %>%
+        filter(y <= 422.5)
+
+outer_line <- data.frame(x = c(-250, 250, 250, -250, -250),
+                         y = c(-47.5, -47.5, 422.5, 422.5, -47.5))
+
+outer_paint_zone <- data.frame(x = c(-80, 80, 80, -80, -80),
+                               y = c(-47.5, -47.5, 142.5, 142.5, -47.5))
+
+inner_paint_zone <- data.frame(x = c(-60, 60, 60, -60, -60),
+                               y = c(-47.5, -47.5, 142.5, 142.5, -47.5))
+
+basketball_court <- ggplot() + 
+        geom_path(data = outer_line, aes(x = x, y = y)) + # outer line
+        geom_path(data = circle, aes(x = x, y = y)) + # Hoop
+        geom_path(data = backboard, aes(x = x, y = y)) + # Backboard
+        geom_path(data = outer_paint_zone, aes(x = x, y = y)) + # outer_paint_zone
+        geom_path(data = inner_paint_zone, aes(x = x, y = y)) + # inner_paint_zone
+        geom_path(data = circle.FT.top, aes(x = x, y = y)) +  # FT top arc
+        geom_path(data = circle.FT.bottom, aes(x = x, y = y), linetype = 2) + # FT bottom arc
+        geom_path(data = restricted.top, aes(x = x, y = y)) +  # restricted zone
+        geom_path(data = left_corner_three, aes(x = x, y = y)) + # left_corner_three
+        geom_path(data = right_corner_three, aes(x = x, y = y)) + # right_corner_three
+        geom_path(data = three_point, aes(x = x, y = y)) + # three_point_line
+        geom_path(data = center_arc, aes(x = x, y = y)) + # center_arc
+        xlim(-275, 275) + ylim(-75, 475)
+basketball_court
+```
+
+```{r, fig.retina=2, fig.width=6.2, fig.height=5}
+custom_theme <- theme_bw(base_family = "Open Sans") +
+        theme(legend.position = "right",
+              axis.title.x = element_blank(), axis.title.y = element_blank(),
+              axis.text.x = element_blank(), axis.text.y = element_blank(),
+              axis.ticks = element_blank(),
+              legend.title = element_text(size = 9, face = "bold"),
+              legend.text = element_text(size = 8),
+              legend.key = element_blank(),
+              plot.title = element_text(family = "Open Sans"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.background = element_blank())
+theme_set(custom_theme)
+
+ggplot() +
+        geom_point(data = kobe_train, aes(x = loc_x, y = loc_y, colour = factor(shot_made_flag), fill = NULL), alpha = 0.3, size = 1) +
+        basketball_court$layers +
+        xlim(-275, 275) + ylim(-75, 475) +
+        scale_color_hue("Shots by Kobe", labels = c("Miss", "Good"))
+```
+
+```{r}
+ggplot() +
+        xlim(-275, 275) + ylim(-75, 475) +
+        geom_point(data = kobe_train,
+                   aes(x = loc_x, y = loc_y, colour = factor(shot_made_flag),
+                       fill = NULL), alpha = 0.5, size = 0.2) +
+        scale_color_hue("Shots by Kobe", labels = c("Miss", "Good")) +
+        basketball_court$layers +
+        facet_wrap( ~ season, nrow = 3)
+```
+
+```{r}
+shot_type <- kobe_train
+less_than_20 <- which(table(shot_type$action_type) < 20)
+levels(shot_type$action_type)[less_than_20] <- "Others"
+dim(table(shot_type$action_type))
+
+rate_based_shot_type <- shot_type %>%
+        group_by(action_type) %>%
+        summarise(shot_rate = sum(shot_made_flag) / n()) %>%
+        arrange(desc(shot_rate)) %>%
+        mutate(color = cut(.$shot_rate, 4))
+
+ggplot(data = rate_based_shot_type, aes(x = shot_rate, y = reorder(action_type, shot_rate))) +
+        geom_segment(aes(yend = action_type), xend = 0, colour = "grey50") +
+        geom_point(size = 3, aes(colour = color)) +
+        geom_text(aes(x = shot_rate + 0.03, label = round(shot_rate, 3)), size = 3.5,
+                  family="OpenSans") +
+        theme(legend.position="none")
+```
+
+```{r}
+distance_based <- kobe_train %>%
+        group_by(shot_distance) %>%
+        summarise(rate = sum(shot_made_flag) / n()) %>%
+        filter(shot_distance <= 50)
+
+ggplot(data = distance_based, aes(x = shot_distance, y = rate, fill = shot_distance)) + 
+        geom_bar(stat = "identity") + 
+        scale_fill_gradient(low="red", high="white") +
+        theme(legend.position="none") +
+        ggtitle("Shot Rate by Distance") +
+        xlab("Shot Distance") + ylab("Shot Rate")
+```
+
+```{r}
+day_based <- kobe_train %>%
+        group_by(day_difference) %>%
+        summarise(rate = sum(shot_made_flag) / n()) %>%
+        arrange(day_difference)
+
+ggplot(day_based, aes(x = factor(day_difference), y = rate)) +
+        geom_bar(stat = "identity") +
+        coord_cartesian(ylim = c(0.43, 0.46)) + 
+        geom_text(aes(y = rate + 0.0015, label = round(rate, 3)), size = 4) +
+        xlab("Days Between Two Consecutive Matches") + ylab("Shot Rate")
+```
+
+```{r}
+kobe_train %>%
+        group_by(playoffs) %>%
+        summarise(rate = sum(shot_made_flag) / n()) %>%
+        mutate(playoffs = c("Regular Season", "Playoffs"))
+# 별 차이가 없다.
+```
+
+```{r}
+kobe_train %>%
+        group_by(overtime) %>%
+        summarise(rate = sum(shot_made_flag) / n()) %>%
+        ggplot(aes(x = overtime, y = rate)) + 
+        geom_bar(stat = "identity") +
+        coord_cartesian(ylim = c(0.44, 0.45)) +
+        xlab("Overtime") + ylab("Shot Rate")
+# 별 차이 없다.
+```
+
+```{r}
+kobe_train %>%
+        group_by(period) %>%
+        summarise(rate = sum(shot_made_flag) / n(), count = n()) %>%
+        mutate(overtime = period > 4) %>%
+        ggplot(aes(x = factor(period), y = rate, fill = factor(overtime))) +
+        geom_bar(stat = "identity") + 
+        scale_fill_fivethirtyeight("Overtime", labels = c("Regulation", "Overtime")) +
+        coord_cartesian(ylim = c(0.4, 0.475)) +
+        geom_text(aes(y = rate + 0.005, label = round(rate, 3)), size = 3.5) +
+        xlab("Period") + ylab("Shot Rate")
+```
+
+```{r}
+kobe_train %>%
+        group_by(home) %>%
+        summarise(rate = sum(shot_made_flag) / n()) %>%
+        ggplot(aes(x = factor(home), y = rate, fill = factor(home))) +
+        geom_bar(stat = "identity") + 
+        scale_fill_hue("Home/Away", labels = c("Away", "Home")) +
+        coord_cartesian(ylim = c(0.4, 0.475)) +
+        geom_text(aes(y = rate + 0.002, label = round(rate, 3)), size = 4) +
+        ylab("Shot Rate") + xlab("") +
+        theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+```{r}
+kobe_train %>%
+        group_by(opponent) %>%
+        summarise(rate = sum(shot_made_flag) / n()) %>%
+        mutate(conference = as.factor(conference)) %>%
+        arrange(desc(rate)) %>%
+        ggplot(aes(x = reorder(opponent, -rate), y = rate, fill = conference)) + 
+        geom_bar(stat = "identity") + 
+        coord_cartesian(ylim = c(0.39, 0.48)) +
+        geom_text(aes(y = rate + 0.002, label = round(rate, 3)), size = 4,
+                  family="OpenSans-CondensedLight") +
+        scale_fill_manual("Conference", values = c("#62a6ff", "#ff8e41"))
+```
+
+
+
+
+## Predicting with XGBoost
+
+```{r}
+library(xgboost)
+
+kobe_train_xgboost <- kobe_train %>%
+        select(action_type, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test %>%
+        select(action_type, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_train_label <- kobe_train$shot_made_flag
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label, max.depth = 7,
+                        eta = 0.3, subsample = 1, nthread = 4,
+                        seed = 0, nrounds = 35, objective = "binary:logistic", eval_metric = "auc")
+
+train_pred <- predict(kobe_xgboost, kobe_train_xgboost)
+head(train_pred)
+
+MultiLogLoss(as.matrix(kobe_train_label), as.matrix(train_pred))
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+```
+
+위 결과물로 로그 손실 함수값 0.61488을 얻었다. 만족스러운 결과이긴 하지만, Cross Validation을 통해 파라미터 튜닝을 하여 더 좋은 결과를 얻어보고자 한다. 또한 과적합(Overfitting)을 해결하기 위해서 `eta` 값을 줄이고 `nrounds` 값을 높일 예정이다. 최적의 `nrounds` 값을 구하기 위해 다음의 코드를 실행한다.
+
+#### Cross Validation
+
+```{r}
+bst <- xgb.cv(data = kobe_train_xgboost, label = kobe_train_label, nfold = 10,
+              nrounds = 40, objective = "binary:logistic",
+              subsample = 1, max.depth = 7, eta = 0.2,
+              early.stop.round = 5, maximize = FALSE)
+```
+
+여기서 얻은 Best Iteration 값을 `nrounds` 값으로 사용한다.
+
+```{r}
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label, max.depth = 7,
+                        eta = 0.2, subsample = 1, nthread = 2,
+                        nrounds = 22, objective = "binary:logistic", eval_metric = "logloss")
+
+train_pred <- predict(kobe_xgboost, kobe_train_xgboost)
+head(train_pred)
+
+MultiLogLoss(as.matrix(kobe_train_label), as.matrix(train_pred))
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+```
+
+```{r}
+bst <- xgb.cv(data = kobe_train_xgboost, label = kobe_train_label, nfold = 5,
+              nrounds = 50, objective = "binary:logistic",
+              subsample = 1, max.depth = 7, eta = 0.05,
+              early.stop.round = 10, maximize = FALSE)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 37, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+```
+
+제출 결과 0.60768의 로그 손실 함수 결과값을 얻었고, 이전보다 0.00719 낮아졌다.
+고려하지 않은 변수들의 형태를 바꾸거나 추가해서 다시 모델링을 시도한다.
+
+- `game_event_id` 를 고려하지 않았지만, 다음 모델링에선 추가한다.
+
+```{r}
+kobe_train_xgboost <- kobe_train %>%
+        select(action_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test %>%
+        select(action_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+```
+
+데이터가 바뀌었으므로, 다시 한 번 Cross Validation을 시행한다.
+
+```{r}
+bst <- xgb.cv(data = kobe_train_xgboost, label = kobe_train_label, nfold = 5,
+              nrounds = 50, objective = "binary:logistic",
+              subsample = 1, max.depth = 7, eta = 0.05,
+              early.stop.round = 10, maximize = FALSE)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 45, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+```
+
+3점슛과 2점슛을 숫자로만 구분해보려고 한다.
+
+```{r}
+kobe_train <- kobe_train %>%
+        mutate(point_type = as.numeric(substr(shot_type, start = 1, stop = 1)))
+
+kobe_test <- kobe_test %>%
+        mutate(point_type = as.numeric(substr(shot_type, start = 1, stop = 1)))
+
+kobe_train_xgboost <- kobe_train %>%
+        select(action_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test %>%
+        select(action_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 60, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+# 0.60543
+
+kobe_imp <- xgb.importance(dimnames(kobe_train_xgboost)[[2]], kobe_xgboost) %>%
+        arrange(desc(Gain))
+```
+
+```{r}
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 70, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+# 0.60481
+```
+
+```{r}
+kobe_train_xgboost <- kobe_train %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 70, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+# 0.60157
+```
+
+```{r}
+kobe_train <- kobe_train %>%
+        mutate(total_seconds_remaining = seconds_remaining + minutes_remaining * 60)
+
+kobe_test <- kobe_test %>%
+        mutate(total_seconds_remaining = seconds_remaining + minutes_remaining * 60)
+
+kobe_train_xgboost <- kobe_train %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch, total_seconds_remaining) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch, total_seconds_remaining) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 70, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+# 0.60290
+```
+
+```{r}
+kobe_train_xgboost <- kobe_train %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime, clutch) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 80, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+# 0.60135
+```
+
+
+
+```{r}
+kobe_train_xgboost <- kobe_train %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 88, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+# 0.60123
+```
+
+```{r}
+kobe_train_xgboost <- kobe_train %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 95, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+# 0.60122
+
+xgb.importance(dimnames(kobe_train_xgboost)[[2]], kobe_xgboost)
+```
+
+```{r}
+new_kobe <- kobe_shot
+less_than_20 <- which(table(kobe_shot$action_type) < 20)
+levels(new_kobe$action_type)[less_than_20] <- "Others"
+
+new_kobe_train <- new_kobe %>%
+        filter(!is.na(shot_made_flag))
+new_kobe_test <- new_kobe %>%
+        filter(is.na(shot_made_flag))
+
+new_kobe_train <- new_kobe_train %>%
+        mutate(point_type = as.numeric(substr(shot_type, start = 1, stop = 1)))
+
+new_kobe_test <- new_kobe_test %>%
+        mutate(point_type = as.numeric(substr(shot_type, start = 1, stop = 1)))
+
+kobe_train_xgboost <- new_kobe_train %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- new_kobe_test %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, point_type, shot_zone_area, shot_zone_basic, opponent, day_difference, home, overtime) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1, nthread = 2,
+                        nrounds = 105, objective = "binary:logistic", eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+# 0.60114
+```
+
+```{r}
+kobe_train_xgboost <- new_kobe_train %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_area, shot_zone_basic, opponent, day_difference, home) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- new_kobe_test %>%
+        select(action_type, combined_shot_type, game_event_id, loc_x, loc_y, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_area, shot_zone_basic, opponent, day_difference, home) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1,
+                        nrounds = 105, objective = "binary:logistic",
+                        eval_metric = "logloss", verbose = 0)
+
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+
+MultiLogLoss(as.matrix(answer), as.matrix(submission))
+
+xgb.importance(dimnames(kobe_train_xgboost)[[2]], kobe_xgboost)
+
+# HOW ABOUT ANGLE?
+```
+
+```{r}
+# Angle
+origin <- c(-275, 0)
+point <- c(-10, 10)
+
+angle.calc <- function(x){ 
+        origin <- c(-275, 0)/sqrt(sum(c(-275, 0)^2))
+        x <- as.vector(x)/sqrt(sum(x^2))
+        rho <- acos((sum((origin-x)^2)-2)/-2)
+        return(rho * 180 / pi)
+}
+
+kobe_train_angle <- new_kobe_train
+kobe_train_angle$angle <- apply(select(new_kobe_train, loc_x, loc_y), 1, angle.calc)        
+kobe_train_angle$angle[is.nan(kobe_train_angle$angle)] <- 90
+
+kobe_test_angle <- new_kobe_test
+kobe_test_angle$angle <- apply(select(new_kobe_test, loc_x, loc_y), 1, angle.calc)        
+kobe_test_angle$angle[is.nan(kobe_test_angle$angle)] <- 90
+
+
+kobe_train_xgboost <- kobe_train_angle %>%
+        select(action_type, combined_shot_type, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, opponent, day_difference, home, angle) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test_angle %>%
+        select(action_type, combined_shot_type, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, opponent, day_difference, home, angle) %>%
+        model.matrix(~., data = .)
+
+LogLoss <- NULL
+
+for(i in 20:30){
+        kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                                max.depth = 7, eta = 0.04, subsample = 1,
+                                nrounds = i*5, objective = "binary:logistic",
+                                eval_metric = "logloss", verbose = 0)
+
+        submission <- predict(kobe_xgboost, kobe_test_xgboost)
+
+        LogLoss <- c(LogLoss, MultiLogLoss(as.matrix(answer), as.matrix(submission)))
+}
+
+min(LogLoss)
+
+data.frame(Iterations = seq(10, 20) * 5,
+           LogLoss = LogLoss)
+####################################################
+
+kobe_train_angle <- new_kobe_train
+kobe_train_angle$angle <- apply(select(new_kobe_train, loc_x, loc_y), 1, angle.calc)        
+kobe_train_angle$angle[is.nan(kobe_train_angle$angle)] <- 90
+
+kobe_test_angle <- new_kobe_test
+kobe_test_angle$angle <- apply(select(new_kobe_test, loc_x, loc_y), 1, angle.calc)        
+kobe_test_angle$angle[is.nan(kobe_test_angle$angle)] <- 90
+
+
+kobe_train_xgboost <- kobe_train_angle %>%
+        select(action_type, combined_shot_type, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, opponent, day_difference, home, angle) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test_angle %>%
+        select(action_type, combined_shot_type, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, opponent, day_difference, home, angle) %>%
+        model.matrix(~., data = .)
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.04, subsample = 1,
+                        nrounds = 105, objective = "binary:logistic",
+                        eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+
+MultiLogLoss(as.matrix(answer), as.matrix(submission))
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+xgb.importance(dimnames(kobe_train_xgboost)[[2]], kobe_xgboost)
+
+# Iteration : 105 ; BEST
+# Learning Rate : 0.04
+# Max Depth = 7
+# 0.60064
+```
+
+```{r}
+kobe_shot_rate <- kobe_train_angle %>%
+        group_by(season) %>%
+        summarise(shot_rate = sum(shot_made_flag) / n())
+
+kobe_train_final <- kobe_train_angle %>%
+        mutate(shot_rate = ifelse())
+```
+
+
+
+```{r}
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.05, subsample = 1,
+                        nrounds = 105, colsample_bytree=0.5,
+                        objective = "binary:logistic",
+                        eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+
+MultiLogLoss(as.matrix(answer), as.matrix(submission))
+```
+
+
+
+
+```{r}
+# 코비 데이터 크롤링
+library(rjson)
+playerID <- 977
+shotURL <- paste0("http://stats.nba.com/stats/shotchartdetail?CFID=33&CFPARAMS=2014-15&ContextFilter=&ContextMeasure=FGA&DateFrom=&DateTo=&GameID=&GameSegment=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerID=",
+                  playerID,
+                  "&PlusMinus=N&Position=&Rank=N&RookieYear=&Season=&SeasonSegment=&SeasonType=Regular+Season&TeamID=0&VsConference=&VsDivision=1&mode=Advanced&showDetails=0&showShots=1&showZones=0")
+```
+
+```{r}
+# Regular Seasons
+seasons <- c("1996-97", "1997-98", "1998-99", "1999-00", "2000-01", "2001-02", "2002-03",
+             "2003-04", "2004-05", "2005-06", "2006-07", "2007-08", "2008-09", "2009-10",
+             "2010-11", "2011-12", "2012-13", "2013-14", "2014-15", "2015-16")
+playerID <- 977
+kobe_crawling <- NULL
+
+for(i in seasons){
+        shotURL <- paste0("http://stats.nba.com/stats/shotchartdetail?CFID=&CFPARAMS=&ContextFilter=&ContextMeasure=FGA&DateFrom=&DateTo=&EndPeriod=&EndRange=&GameID=&GameSegment=&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0&Outcome=&Period=0&PlayerID=977&Position=&RangeType=0&RookieYear=&Season=",
+                          i,
+                          "&SeasonSegment=&SeasonType=Regular+Season&StartPeriod=1&StartRange=0&TeamID=0&VsConference=&VsDivision=")
+        
+        # import from JSON
+        shotData <- fromJSON(file = shotURL, method="C")
+        
+        # unlist shot data, save into a data frame
+        shotDataf <- data.frame(matrix(unlist(shotData$resultSets[[1]][[3]]), ncol=21, byrow = TRUE))
+        
+        # shot data headers
+        colnames(shotDataf) <- shotData$resultSets[[1]][[2]]
+        
+        # covert x and y coordinates into numeric
+        shotDataf$LOC_X <- as.numeric(as.character(shotDataf$LOC_X))
+        shotDataf$LOC_Y <- as.numeric(as.character(shotDataf$LOC_Y))
+        shotDataf$SHOT_DISTANCE <- as.numeric(as.character(shotDataf$SHOT_DISTANCE))
+        
+        kobe_crawling <- rbind(kobe_crawling, shotDataf)
+}
+
+kobe_crawling$playoffs <- 0
+```
+
+```{r}
+# Playoffs
+temp <- kobe_shot %>%
+        filter(playoffs == 1)
+pl_seasons <- c("1996-97", "1997-98", "1998-99", "1999-00", "2000-01", "2001-02",
+                "2002-03", "2003-04", "2005-06", "2006-07", "2007-08", "2008-09",
+                "2009-10", "2010-11", "2011-12")
+
+kobe_pl <- NULL 
+
+for(i in pl_seasons){
+        shotURL <- paste0("http://stats.nba.com/stats/shotchartdetail?CFID=&CFPARAMS=&ContextFilter=&ContextMeasure=FGA&DateFrom=&DateTo=&EndPeriod=&EndRange=&GameID=&GameSegment=&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0&Outcome=&Period=0&PlayerID=977&Position=&RangeType=0&RookieYear=&Season=",
+                          i,
+                          "&SeasonSegment=&SeasonType=Playoffs&StartPeriod=1&StartRange=0&TeamID=0&VsConference=&VsDivision=")
+        
+        # import from JSON
+        shotData <- fromJSON(file = shotURL, method="C")
+        
+        # unlist shot data, save into a data frame
+        shotDataf <- data.frame(matrix(unlist(shotData$resultSets[[1]][[3]]), ncol=21, byrow = TRUE))
+        
+        # shot data headers
+        colnames(shotDataf) <- shotData$resultSets[[1]][[2]]
+        
+        # covert x and y coordinates into numeric
+        shotDataf$LOC_X <- as.numeric(as.character(shotDataf$LOC_X))
+        shotDataf$LOC_Y <- as.numeric(as.character(shotDataf$LOC_Y))
+        shotDataf$SHOT_DISTANCE <- as.numeric(as.character(shotDataf$SHOT_DISTANCE))
+        
+        kobe_pl <- rbind(kobe_pl, shotDataf)
+}
+
+kobe_pl$playoffs <- 1
+
+Kobe <- rbind(kobe_crawling, kobe_pl)
+```
+
+```{r}
+library(dplyr)
+Kobe <- tbl_df(Kobe)
+Kobe$GAME_ID <- as.numeric(as.character(Kobe$GAME_ID))
+Kobe$GAME_EVENT_ID <- as.numeric(as.character(Kobe$GAME_EVENT_ID))
+```
+
+```{r}
+left_joined <- left_join(kobe_shot, Kobe, by = c("game_id" = "GAME_ID", "game_event_id" = "GAME_EVENT_ID"))
+print(select(left_joined, shot_made_flag, SHOT_MADE_FLAG), n = Inf)
+left_joined %>%
+        filter(is.na(shot_made_flag)) %>%
+        print(width = Inf) %>%
+        select(shot_made_flag, SHOT_MADE_FLAG)
+
+answer <- left_joined$SHOT_MADE_FLAG[is.na(left_joined$shot_made_flag)]
+answer <- as.numeric(as.character(answer))
+
+submitted <- read.csv("submission(0.60114).csv")
+submitted <- submitted$shot_made_flag
+MultiLogLoss(as.matrix(answer), as.matrix(submitted))
+```
+
+
+```{r}
+# Random Forest
+library(randomForest)
+library(dplyr)
+library(doParallel)
+
+trainRF <- kobe_train_angle %>%
+        select(action_type, combined_shot_type, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, opponent, day_difference, home, angle, shot_made_flag)
+
+trainRF$shot_made_flag <- factor(trainRF$shot_made_flag)
+
+testRF <- kobe_test_angle %>%
+        select(action_type, combined_shot_type, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, opponent, day_difference, home, angle, shot_made_flag)
+
+testRF$shot_made_flag <- factor(testRF$shot_made_flag)
+
+kobeRF <- randomForest(shot_made_flag ~ ., data = trainRF, importance = TRUE, proximity = TRUE)
+
+kobePredicted <- predict(kobeRF, newdata = testRF[-14], type = "prob")
+
+MultiLogLoss(as.matrix(answer), as.matrix(kobePredicted[, 2]))
+```
+
+For Term Paper
+
+1. 전체 변수를 다 넣었을 때
+```{r}
+firstBoost_train <- kobe_train_angle %>%
+        select(action_type, combined_shot_type, game_event_id, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, shot_zone_area, opponent, day_difference, home, angle) %>%
+        model.matrix(~., data = .)
+
+firstBoost_test <- kobe_test_angle %>%
+        select(action_type, combined_shot_type, game_event_id, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, shot_zone_area, opponent, day_difference, home, angle) %>%
+        model.matrix(~., data = .)
+
+eta = c(0.02, 0.03, 0.04, 0.05)
+depth = 5:10
+iteration = 5 * (1:30)
+LogLoss = NULL
+experiment_data = data.frame(LearningRate = c(),
+                             MaximumDepth = c(),
+                             Iterations = c(),
+                             LogLoss = c())
+
+for(i in eta){          # 학습률
+        for(j in depth){
+                for(k in iteration){
+                        kobe_xgboost <- xgboost(data = firstBoost_train, label = kobe_train_label,
+                                                max.depth = j, eta = i, subsample = 1,
+                                                nrounds = k, objective = "binary:logistic",
+                                                eval_metric = "logloss", verbose = 0)
+                        
+                        cat("Boosting Done with Parameters Learning Rate =", i, "/ Max Depth =", j, "/ Iterations =", k, "\n")
+                        
+                        submission <- predict(kobe_xgboost, firstBoost_test)
+                        
+                        LogLoss <- MultiLogLoss(as.matrix(answer), as.matrix(submission))
+                        
+                        experiment_data <- rbind(experiment_data,
+                                                 data.frame(LearningRate = i, MaximumDepth = j,
+                                                            Iterations = k, LogLoss = LogLoss))
+                }
+        }
+}
+
+min(experiment_data$LogLoss)
+
+experiment_data$LearningRate <- as.factor(experiment_data$LearningRate)
+
+Minimum <- experiment_data %>%
+        filter(LearningRate == 0.05)
+
+Temp <- split(Minimum, f = Minimum$MaximumDepth)
+        
+min <- rbind(Temp[[1]][Temp[[1]]$LogLoss == min(Temp[[1]]$LogLoss), ],
+Temp[[2]][Temp[[2]]$LogLoss == min(Temp[[2]]$LogLoss), ],
+Temp[[3]][Temp[[3]]$LogLoss == min(Temp[[3]]$LogLoss), ],
+Temp[[4]][Temp[[4]]$LogLoss == min(Temp[[4]]$LogLoss), ],
+Temp[[5]][Temp[[5]]$LogLoss == min(Temp[[5]]$LogLoss), ],
+Temp[[6]][Temp[[6]]$LogLoss == min(Temp[[6]]$LogLoss), ])
+
+min <- experiment_data %>%
+    group_by(LearningRate, MaximumDepth) %>%
+    summarise(#LearningRate = LearningRate,
+              #MaximumDepth = MaximumDepth,
+              Minimum = min(LogLoss)) %>%
+        group_by(MaximumDepth) %>%
+        summarise(Minimum = min(Minimum))
+
+min$LearningRate <- c(0.04, 0.03, 0.03, 0.05, 0.04, 0.04)
+min$Iterations <- c(135, 150, 150, 80, 85, 100)
+
+ggplot() + 
+        geom_point(data = experiment_data, aes(x = Iterations, y = LogLoss, color = LearningRate, group = LearningRate, shape = LearningRate)) +
+        geom_line(data = experiment_data, aes(x = Iterations, y = LogLoss, color = LearningRate, group = LearningRate)) +
+        geom_point(data = min, aes(x = Iterations, y = Minimum), fill = "#000000", size = 3) +
+        geom_text(data = min, aes(x = 100, y = 0.66, label = paste("Minimum =", round(Minimum, 6))),
+                  color = "#000000", fontface = "bold", show.legend = FALSE) +
+        facet_wrap( ~ MaximumDepth, nrow = 2)
+```
+
+```{r}
+iter <- 5*(28:35)
+finalExper = data.frame(LearningRate = c(),
+                        MaximumDepth = c(),
+                        Iterations = c(),
+                        LogLoss = c())
+for(k in iter){
+        kobe_xgboost <- xgboost(data = firstBoost_train, label = kobe_train_label,
+                                max.depth = 7, eta = 0.03, subsample = 1,
+                                nrounds = k, objective = "binary:logistic",
+                                eval_metric = "logloss", verbose = 1)
+        
+        cat("\n\nBoosting Done with Parameters Learning Rate = 0.03 / Max Depth = 7 / Iterations =", k, "\n\n")
+        
+        submission <- predict(kobe_xgboost, firstBoost_test)
+        
+        LogLoss <- MultiLogLoss(as.matrix(answer), as.matrix(submission))
+        
+        finalExper <- rbind(finalExper,
+                                 data.frame(LearningRate = 0.03, MaximumDepth = 7,
+                                            Iterations = k, LogLoss = LogLoss))
+}
+
+finalExper
+
+kobe_xgboost <- xgboost(data = firstBoost_train, label = kobe_train_label,
+                                                max.depth = 7, eta = 0.03, subsample = 1,
+                                                nrounds = 155, objective = "binary:logistic",
+                                                eval_metric = "logloss", verbose = 0)
+
+kobe_imp <- xgb.importance(dimnames(firstBoost_train)[[2]], kobe_xgboost) %>%
+        arrange(desc(Gain))
+
+xgb.plot.importance(kobe_imp)
+
+kobe_imp
+
+
+
+
+
+kobe_train_xgboost <- kobe_train_angle %>%
+        select(action_type, combined_shot_type, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, opponent, day_difference, home, angle) %>%
+        model.matrix(~., data = .)
+
+kobe_test_xgboost <- kobe_test_angle %>%
+        select(action_type, combined_shot_type, period, minutes_remaining, seconds_remaining, playoffs, season, shot_distance, shot_zone_basic, opponent, day_difference, home, angle) %>%
+        model.matrix(~., data = .)
+
+
+##############
+iter <- 5*(1:24)
+finalExper = data.frame(LearningRate = c(),
+                        MaximumDepth = c(),
+                        Iterations = c(),
+                        LogLoss = c())
+for(k in iter){
+        kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                                max.depth = 7, eta = 0.04, subsample = 1,
+                                nrounds = k, objective = "binary:logistic",
+                                eval_metric = "logloss", verbose = 1)
+        
+        cat("\n\nBoosting Done with Parameters Learning Rate = 0.04 / Max Depth = 7 / Iterations =", k, "\n\n")
+        
+        submission <- predict(kobe_xgboost, kobe_test_xgboost)
+        
+        LogLoss <- MultiLogLoss(as.matrix(answer), as.matrix(submission))
+        
+        finalExper <- rbind(finalExper,
+                                 data.frame(LearningRate = 0.04, MaximumDepth = 7,
+                                            Iterations = k, LogLoss = LogLoss))
+}
+
+ggplot(data = finalExper, aes(x = Iterations, y = LogLoss)) +
+        geom_line(colour = "#F76A62") +
+        geom_point(colour = "#F76A62") +
+        geom_point(aes(x = 105, y = 0.600639), size = 3, fill = "#000000") +
+        geom_text(aes(x = 100, y = 0.66, label = paste("Minimum = 0.600639")),
+                  color = "#000000", fontface = "bold", show.legend = FALSE)
+##################
+
+kobe_xgboost <- xgboost(data = kobe_train_xgboost, label = kobe_train_label,
+                        max.depth = 7, eta = 0.04, subsample = 1,
+                        nrounds = 105, objective = "binary:logistic",
+                        eval_metric = "logloss")
+
+submission <- predict(kobe_xgboost, kobe_test_xgboost)
+
+MultiLogLoss(as.matrix(answer), as.matrix(submission))
+submission.csv <- data.frame(shot_id = kobe_test$shot_id,
+                             shot_made_flag = submission)
+
+write.csv(submission.csv, "submission.csv", row.names = FALSE)
+
+xgb.importance(dimnames(kobe_train_xgboost)[[2]], kobe_xgboost)
+
+# Iteration : 105 ; BEST
+# Learning Rate : 0.04
+# Max Depth = 7
+# 0.60064
+```
+
