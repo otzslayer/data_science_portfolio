@@ -50,6 +50,8 @@ If some project material such as data are missing, it is not possible to upload 
 ### Sberbank Russian Housing Market
 (Jun 2017, Kaggle competition)
 
+- https://www.kaggle.com/c/sberbank-russian-housing-market
+
 - 주택 변수와 거시 경제 변수들을 사용해 부동산 가격을 예측했습니다. 수많은 이상치와 제한적인 변수들로 인한 문제를 해결하기 위해 데이터 전처리에 많은 시간을 할애하였습니다. 그라디언트 부스팅과 랜덤 포레스트로 단일 모델을 구현하고, 가중평균을 이용하여 블렌딩하였습니다. 최종 결과로 상위 25%를 기록했습니다.
 
 - Forecasted realty prices by using housing data and macroeconomic patterns. Did extensive data preprocessing to alleviate problems that caused by a large number of outliers and some features with a lack of information. Implemented single models with gradient boosting and random forest, models were blended by weighted average with (0.8, 0.2). The result was of top 25% in leaderboard.
@@ -69,10 +71,16 @@ If some project material such as data are missing, it is not possible to upload 
 ### Predicting the House Price in King County
 (Feb 2017, 개인 프로젝트)
 
-- 매매일, 주택의 상세 정보, 위치 정보 등을 이용하여 
+- 거래일, 주택의 상세 정보, 위치 정보 등을 이용하여 시애틀 킹 카운티 지역의 주택 가격을 예측했습니다. 학부생 강의용으로 진행했던 프로젝트로, Adaptive Lasso를 포함한 다양한 회귀 분석 알고리즘을 사용했습니다.
+
+- Predicted the house price in King County, Seattle using transaction dates, features of housing, and location information. This project that was conducted for undergraduate lectures, using a variety of regression analysis algorithms, including Adaptive Lasso.
 
 ### Ensemble Approach for Financial Prediction
 (Jun 2016 - Dec 2016, 다수 외국계 은행 주관 프로젝트)
+
+- 다양한 국가 기반의 주가 지수 및 환율 등의 변수를 이용하여 금융 시장을 예측하였습니다. 기존 연구와 다르게 지수의 로그 수익률을 입력 변수로 하여 모델을 구현했습니다. 단일 모델을 앙상블하여 성능을 높이고, Lasso를 이용하여 단일 모델에서의 설명을 가능하게 했습니다.
+
+- Forecasted the financial market by using the stock market indices, exchange rates based on various contries. Unlike previous studies, the model was implemented with the logarithmic return of the index as input variable. Improved the performance by ensembling single models, and use Lasso to explain the feature importance of each variable.
 
 - 한재윤, 이경전, “금융 시장 예측을 위한 앙상블 접근: 스태킹과 롤링 윈도우를 중심으로”, 2017 년 한국지능정보시스템학회 추계학술대회논문집, (2017).
 - 한재윤 외 3 명, “기계학습과 롤링 윈도우 기법을 활용한 주식시장 및 환율 예측 모델 구현”, 2017 년 한국지능정보시스템학회 춘계학술대회논문집, (2017).
@@ -80,8 +88,23 @@ If some project material such as data are missing, it is not possible to upload 
 ### Korea Earthquake Interactive Map
 (Dec 2016, 개인 프로젝트)
 
+- https://otzslayer.shinyapps.io/kor_quakes/
+
+- 기상청의 지진 데이터를 실시간으로 로드하고 Shiny를 이용하여 인터랙티브 지도를 구현했습니다. (현재 기상청 사이트의 도메인 변경으로 올바르게 데이터를 받아오지 못해 임시적으로 csv 파일을 불러오도록 했습니다.) 데이터 필터링 기능을 갖춘 슬라이더와 다양한 그래픽 요소들을 제공합니다.
+
+- Implemented an interactive map, which described real-time earthquake data provided by Korea Meteorological Administration, using Shiny. (It is now temporarily importing the csv file due to the fact that the site was not able to receive the correct data because of the domain change of the site.) It provides a slider with data filtering function and various graphic elements.
+
 ### Network Analysis for Football Transfer Market
 (Dec 2016, 개인 프로젝트)
 
+- 네트워크 분석을 통해 2016년 여름 유럽 축구 이적시장을 바라보았습니다. 경제적 규모가 가장 큰 네 개의 리그와 최근 3년간 유럽 국가대항전에 출전한 팀들을 중심으로 가중치 네트워크 분석을 시도했습니다. 그 결과 네트워크의 연결 정도 분포는 멱법칙(power law)를 따르며, 위계 중심성을 통해서 잉글랜드 프리미어리그의 영향력이 매우 크다는 사실을 확인했습니다.
+
+- I looked at European football transfer market in the summer of 2016 through the network analysis. I've trided to analyzed the weighted networks around the four largest leagues and the teams that have competed in the UEFA Champions League for the past three years. As a result, i found that the distribution of network connectivity follows the power law and that the English Premier League is influenctial through eigenvalue centrality.
+
 ### Kobe Bryant Shot Selection
 (Apr 2016, Kaggle competition)
+
+- https://www.kaggle.com/c/kobe-bryant-shot-selection
+
+- NBA의 공식 API에서 제공하는 데이터를 이용하여 NBA의 전설인 코비 브라이언트의 슛 성공 여부를 예측했습니다. 농구에 대한 도메인 지식을 이용하여 많은 변수들을 엔지니어링하였고, 그라디언트 부스팅을 사용하여 모델링했습니다. 최종 결과로 상위 6%를 기록했습니다.
+- Using data provided by the NBA's official API, I predicted that which shots by Kobe Bryant, who is the legendary player of LA Lakers, will find the bottom of the net. Using domain knowledge of basketball, many variables were engineered and implemented using gradient boosting. The final result was the top 6%.
