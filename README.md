@@ -125,7 +125,7 @@ If some project material such as data are missing, it is not possible to upload 
 
 - 네트워크 분석을 통해 2016년 여름 유럽 축구 이적시장을 바라보았습니다. 경제적 규모가 가장 큰 네 개의 리그와 최근 3년간 유럽 국가대항전에 출전한 팀들을 중심으로 가중치 네트워크 분석을 시도했습니다. 그 결과 네트워크의 연결 정도 분포는 멱법칙(power law)를 따르며, 위계 중심성을 통해서 잉글랜드 프리미어리그의 영향력이 매우 크다는 사실을 확인했습니다.
 
-- I looked at European football transfer market in the summer of 2016 through the network analysis. I've trided to analyzed the weighted networks around the four largest leagues and the teams that have competed in the UEFA Champions League for the past three years. As a result, i found that the distribution of network connectivity follows the power law and that the English Premier League is influenctial through eigenvalue centrality.
+- I looked at European football transfer market in the summer of 2016 through the network analysis. I've trided to analyzed the weighted networks around the four largest leagues and the teams that have competed in the UEFA Champions League for the past three years. As a result, i found that the distribution of network connectivity follows the power law and that the English Premier League is influential through eigenvalue centrality.
 
 ### Kobe Bryant Shot Selection
 (Apr 2016, Kaggle competition)
