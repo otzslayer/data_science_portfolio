@@ -57,9 +57,10 @@ If some project material such as data are missing, it is not possible to upload 
 ### Mercedes-Benz Greener Manufacturing
 (Jun 2017 - Jul 2017, Kaggle competition)
 
-- https://www.kaggle.com/c/mercedes-benz-greener-manufacturing
 
 - [Notebook](https://github.com/otzslayer/projects/blob/master/Mercedes-Benz%20Greener%20Manufacturing/Mercedes-Benz%20Greener%20Manufacturing.ipynb)
+
+- https://www.kaggle.com/c/mercedes-benz-greener-manufacturing
 
 - 익명화된 변수들을 이용하여 차량이 테스트를 통과하는 데에 걸리는 시간을 예측했습니다. 서로 다른 변수 집합(PCA, MCA 등)과 세 가지의 다른 알고리즘을 사용하여 총 18개의 단일 모델을 만들었고, 이를 스태킹하여 앙상블 모델을 구현하였습니다. 캐글 컴피티션에서 상위 27%를 기록했습니다.
 
