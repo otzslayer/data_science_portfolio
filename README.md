@@ -100,7 +100,7 @@ If some project material such as data are missing, it is not possible to upload 
 ### Ensemble Approach for Financial Prediction
 (Jun 2016 - Dec 2016, 다수 외국계 은행 주관 프로젝트)
 
-- [Thesis](http://dcollection.khu.ac.kr.openlink.khu.ac.kr:8080/common/orgView/000000204945)
+- [Keynote](https://github.com/otzslayer/projects/blob/master/Ensemble%20Approach%20for%20Financial%20Prediction/Ensemble%20Approach%20for%20Financial%20Prediction.pdf) / [Thesis](http://dcollection.khu.ac.kr.openlink.khu.ac.kr:8080/common/orgView/000000204945)
 
 - 다양한 국가 기반의 주가 지수 및 환율 등의 변수를 이용하여 금융 시장을 예측하였습니다. 기존 연구와 다르게 지수의 로그 수익률을 입력 변수로 하여 모델을 구현했습니다. 단일 모델을 앙상블하여 성능을 높이고, Lasso를 이용하여 단일 모델에서의 설명을 가능하게 했습니다.
 
