@@ -32,14 +32,14 @@ If some project material such as data are missing, it is not possible to upload 
 - 15" Retina MacBook Pro (Early 2015) 2.7GHz Core i5-5257U, 8GB Ram
 - macOS High Sierra
 - Python 3.6+
-  - `numpy`
-  - `iPython`
-  - `pandas`
-  - `scikit-learn`
-  - `scipy`
-  - `statsmodel`
-  - `matplotlib`
-  - `seaborn`
+  - `numpy==1.13.3`
+  - `pandas==0.20.3`
+  - `sklearn==0.19.0`
+  - `scipy==0.19.1`
+  - `statsmodels==0.8.0`
+  - `matplotlib==2.0.2`
+  - `seaborn==0.7.1`
+  - `xgboost=0.6`
 - R 3.4.2 with RStudio 1.1.383
 
 ## Contents
