@@ -40,7 +40,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 - 15" Retina MacBook Pro (Early 2015) 2.7GHz Core i5-5257U, 8GB Ram
 - macOS High Sierra
 - Python 3.6+ with `jupyter==1.0.0`
-  - `numpy==1.13.3`
+  - `numpy==1.13.3`
   - `pandas==0.20.3`
   - `sklearn==0.19.0`
   - `scipy==0.19.1`
