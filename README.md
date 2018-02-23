@@ -27,12 +27,20 @@ Please fell free to contact me at otzslayer@gmail.com
 If some project material such as data are missing, it is not possible to upload because the data exceeded the file size limit or the data cannot be public.
 
 
+## Portfolio
+
+[PDF](https://github.com/otzslayer/projects/blob/master/portfolio.pdf) (Updated 18.02.23)
+
+본 포트폴리오는 프로젝트 중 일부만을 간략히 다루고 있습니다. 자세한 프로젝트 내용이나 수록되어 있지 않은 내용은 본 깃허브 저장소를 통해서 확인해주시기 바랍니다.
+
+This portfolio covers briefly only some of my projects. Please check this repository for the details of the projects or the contents that are not included in this portfolio. 
+
 ## Hardware / OS Platform Used
 
 - 15" Retina MacBook Pro (Early 2015) 2.7GHz Core i5-5257U, 8GB Ram
 - macOS High Sierra
-- Python 3.6+
-  - `numpy==1.13.3`
+- Python 3.6+ with `jupyter==1.0.0`
+  - `numpy==1.13.3`
   - `pandas==0.20.3`
   - `sklearn==0.19.0`
   - `scipy==0.19.1`
