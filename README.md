@@ -29,7 +29,7 @@ If some project material such as data are missing, it is not possible to upload 
 
 ## Portfolio
 
-[PDF](https://github.com/otzslayer/projects/blob/master/portfolio.pdf) (Updated 18.02.23)
+[PDF](https://github.com/otzslayer/data_science_portfolio/blob/master/portfolio.pdf) (Updated 18.02.23)
 
 본 포트폴리오는 프로젝트 중 일부만을 간략히 다루고 있습니다. 자세한 프로젝트 내용이나 수록되어 있지 않은 내용은 본 깃허브 저장소를 통해서 확인해주시기 바랍니다.
 
@@ -55,7 +55,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 ### PUBG Survival Time Prediction
 (Feb 2018, 개인 프로젝트)
 
-- [Notebook](https://github.com/otzslayer/projects/blob/master/PUBG/PUBG%20Survival%20Time%20Prediction.ipynb) / [PDF](https://github.com/otzslayer/projects/blob/master/PUBG/pubg_summary.pdf)
+- [Notebook](https://github.com/otzslayer/data_science_portfolio/blob/master/PUBG/PUBG%20Survival%20Time%20Prediction.ipynb) / [PDF](https://github.com/otzslayer/data_science_portfolio/blob/master/PUBG/pubg_summary.pdf)
 
 - http://pubgtracker.com 에서 제공하는 PlayerUnknown's Battleground의 상위 플레이어 데이터와 다양한 통계학습 알고리즘을 이용하여 특정 플레이어의 **스쿼드 평균 생존시간**을 예측했습니다. 또한 예측에 사용된 중요 변수들을 탐색하여 생존 전략을 세울 수 있도록 했습니다.
 
@@ -66,7 +66,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 (Jun 2017 - Jul 2017, Kaggle competition)
 
 
-- [Notebook](https://github.com/otzslayer/projects/blob/master/Mercedes-Benz%20Greener%20Manufacturing/Mercedes-Benz%20Greener%20Manufacturing.ipynb)
+- [Notebook](https://github.com/otzslayer/data_science_portfolio/blob/master/Mercedes-Benz%20Greener%20Manufacturing/Mercedes-Benz%20Greener%20Manufacturing.ipynb)
 
 - https://www.kaggle.com/c/mercedes-benz-greener-manufacturing
 
@@ -77,7 +77,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 ### Sberbank Russian Housing Market
 (Jun 2017, Kaggle competition)
 
-- [Notebook](https://github.com/otzslayer/projects/blob/master/Sberbank%20Russian%20Housing%20Market/Sberbank%20Russian%20Housing%20Market.ipynb)
+- [Notebook](https://github.com/otzslayer/data_science_portfolio/blob/master/Sberbank%20Russian%20Housing%20Market/Sberbank%20Russian%20Housing%20Market.ipynb)
 
 - https://www.kaggle.com/c/sberbank-russian-housing-market
 
@@ -100,7 +100,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 ### Predicting the House Price in King County
 (Feb 2017, 개인 프로젝트)
 
-- [Notebook](https://github.com/otzslayer/projects/blob/master/King%20County%20House%20Price/House_KC.Rmd)
+- [Notebook](https://github.com/otzslayer/data_science_portfolio/blob/master/King%20County%20House%20Price/House_KC.Rmd)
 
 - 거래일, 주택의 상세 정보, 위치 정보 등을 이용하여 시애틀 킹 카운티 지역의 주택 가격을 예측했습니다. 학부생 강의용으로 진행했던 프로젝트로, Adaptive Lasso를 포함한 다양한 회귀 분석 알고리즘을 사용했습니다.
 
@@ -109,7 +109,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 ### Ensemble Approach for Financial Prediction
 (Jun 2016 - Dec 2016, 다수 외국계 은행 주관 프로젝트)
 
-- [Keynote](https://github.com/otzslayer/projects/blob/master/Ensemble%20Approach%20for%20Financial%20Prediction/Ensemble%20Approach%20for%20Financial%20Prediction.pdf) / [Thesis](http://dcollection.khu.ac.kr.openlink.khu.ac.kr:8080/common/orgView/000000204945)
+- [Keynote](https://github.com/otzslayer/data_science_portfolio/blob/master/Ensemble%20Approach%20for%20Financial%20Prediction/Ensemble%20Approach%20for%20Financial%20Prediction.pdf) / [Thesis](http://dcollection.khu.ac.kr.openlink.khu.ac.kr:8080/common/orgView/000000204945)
 
 - 다양한 국가 기반의 주가 지수 및 환율 등의 변수를 이용하여 금융 시장을 예측하였습니다. 기존 연구와 다르게 지수의 로그 수익률을 입력 변수로 하여 모델을 구현했습니다. 단일 모델을 앙상블하여 성능을 높이고, Lasso를 이용하여 단일 모델에서의 설명을 가능하게 했습니다.
 
@@ -121,7 +121,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 ### Korea Earthquake Interactive Map
 (Dec 2016, 개인 프로젝트)
 
-- [Link](https://otzslayer.shinyapps.io/kor_quakes/) / [PDF](https://github.com/otzslayer/projects/blob/master/Korea%20Earthquake%20Interactive%20Map/Paper/ShortPaper.pdf)
+- [Link](https://otzslayer.shinyapps.io/kor_quakes/) / [PDF](https://github.com/otzslayer/data_science_portfolio/blob/master/Korea%20Earthquake%20Interactive%20Map/Paper/ShortPaper.pdf)
 
 - 기상청의 지진 데이터를 실시간으로 로드하고 Shiny를 이용하여 인터랙티브 지도를 구현했습니다. (현재 기상청 사이트의 도메인 변경으로 올바르게 데이터를 받아오지 못해 임시적으로 csv 파일을 불러오도록 했습니다.) 데이터 필터링 기능을 갖춘 슬라이더와 다양한 그래픽 요소들을 제공합니다.
 
@@ -130,7 +130,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 ### Network Analysis for Football Transfer Market
 (Dec 2016, 개인 프로젝트)
 
-- [Code](https://github.com/otzslayer/projects/blob/master/Network%20Analysis%20for%20Football%20Transfer%20Market/Network%20Analysis%20for%20Football%20Transfer%20Market.Rmd) / [PDF](https://github.com/otzslayer/projects/blob/master/Network%20Analysis%20for%20Football%20Transfer%20Market/ShortPaper.pdf)
+- [Code](https://github.com/otzslayer/data_science_portfolio/blob/master/Network%20Analysis%20for%20Football%20Transfer%20Market/Network%20Analysis%20for%20Football%20Transfer%20Market.Rmd) / [PDF](https://github.com/otzslayer/data_science_portfolio/blob/master/Network%20Analysis%20for%20Football%20Transfer%20Market/ShortPaper.pdf)
 
 - 네트워크 분석을 통해 2016년 여름 유럽 축구 이적시장을 바라보았습니다. 경제적 규모가 가장 큰 네 개의 리그와 최근 3년간 유럽 국가대항전에 출전한 팀들을 중심으로 가중치 네트워크 분석을 시도했습니다. 그 결과 네트워크의 연결 정도 분포는 멱법칙(power law)를 따르며, 위계 중심성을 통해서 잉글랜드 프리미어리그의 영향력이 매우 크다는 사실을 확인했습니다.
 
@@ -139,7 +139,7 @@ This portfolio covers briefly only some of my projects. Please check this reposi
 ### Kobe Bryant Shot Selection
 (Apr 2016, Kaggle competition)
 
-- [RMarkdown](https://github.com/otzslayer/projects/blob/master/Kobe%20Bryant%20Shot%20Selection/Kobe%20Bryant%20Shot%20Selection.Rmd) / [Keynote](https://github.com/otzslayer/projects/blob/master/Kobe%20Bryant%20Shot%20Selection/Keynote.pdf) / [Short Paper](https://github.com/otzslayer/projects/blob/master/Kobe%20Bryant%20Shot%20Selection/Paper/Paper.pdf)
+- [RMarkdown](https://github.com/otzslayer/data_science_portfolio/blob/master/Kobe%20Bryant%20Shot%20Selection/Kobe%20Bryant%20Shot%20Selection.Rmd) / [Keynote](https://github.com/otzslayer/data_science_portfolio/blob/master/Kobe%20Bryant%20Shot%20Selection/Keynote.pdf) / [Short Paper](https://github.com/otzslayer/data_science_portfolio/blob/master/Kobe%20Bryant%20Shot%20Selection/Paper/Paper.pdf)
 
 - https://www.kaggle.com/c/kobe-bryant-shot-selection
 
